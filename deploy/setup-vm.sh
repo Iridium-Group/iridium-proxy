@@ -17,6 +17,17 @@ CAP=${CAP:-5TB}
 APP=/opt/iridium-proxy
 DATA=/var/lib/iridium-proxy
 
+# Small machines (1 GB RAM, like Oracle's free x86 shape) can run out of memory during the build,
+# so add a swap file if there is little RAM and no swap yet.
+mem_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+if [ "$mem_kb" -lt 2000000 ] && [ -z "$(swapon --show --noheadings)" ]; then
+  fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048
+  chmod 600 /swapfile
+  mkswap /swapfile >/dev/null
+  swapon /swapfile
+  grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y curl git ca-certificates debian-keyring debian-archive-keyring apt-transport-https gpg
