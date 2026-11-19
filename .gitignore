@@ -10,3 +10,4 @@ coverage/
 /web/public/libcurl/
 /web/public/THIRD_PARTY_LICENSES.txt
 /web/public/LICENSE.txt
+.iridium-usage.json

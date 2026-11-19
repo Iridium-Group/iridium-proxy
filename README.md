@@ -96,6 +96,21 @@ Also open ports 80 and 443 in the provider's own firewall (on Oracle: the VCN se
 
 Most clouds also let you paste `deploy/cloud-init.yaml` into the VM's "Custom data" / "User data" box, which runs the same install on first boot, with nothing to type over SSH.
 
+## Running at home with a free public link
+
+No account, card or VM needed. Install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/),
+then from the repo root:
+
+```sh
+./deploy/home/run.sh
+```
+
+It builds everything, starts the proxy with a bandwidth cap (`IRIDIUM_MONTHLY_CAP`, default 50GB),
+and opens a Cloudflare quick tunnel that prints a public `https://....trycloudflare.com` link.
+Traffic leaves from your home connection. The machine must stay on, and the link changes each
+time you start it. Quick tunnels are for light use; I have not tested WebSocket behaviour through
+one at length, so treat it as unverified until you try it.
+
 ## Security notes
 
 - Private and loopback targets are blocked by default. Keep `blockPrivateAddresses` on for any
