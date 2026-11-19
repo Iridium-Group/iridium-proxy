@@ -1,0 +1,67 @@
+{
+  "name": "@iridium-group/proxy",
+  "version": "0.1.0",
+  "description": "Node server for Iridium: serves static files and a Wisp v1 WebSocket endpoint that enforces the configured address and port policy.",
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "author": "Iridium Group contributors",
+  "homepage": "https://github.com/Iridium-Group/iridium-proxy#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Iridium-Group/iridium-proxy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Iridium-Group/iridium-proxy/issues"
+  },
+  "keywords": [
+    "iridium",
+    "wisp",
+    "proxy",
+    "websocket"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "bin": {
+    "iridium-proxy": "./bin/iridium-proxy.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "bin",
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --test-timeout=30000 'test/**/*.test.ts'",
+    "start": "node bin/iridium-proxy.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@iridium-group/config": "github:Iridium-Group/iridium-config",
+    "@iridium-group/transport": "github:Iridium-Group/iridium-transport",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/ws": "^8.18.1",
+    "prettier": "^3.10.1",
+    "typescript": "~5.9.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
