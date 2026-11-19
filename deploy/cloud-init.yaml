@@ -1,0 +1,8 @@
+#cloud-config
+# Paste this into "Custom data" when creating an Ubuntu VM (Azure: Advanced tab; AWS: user data;
+# most other clouds have a "user data" or "cloud-init" box). It installs the Iridium proxy on first
+# boot using deploy/setup-vm.sh. Progress: /var/log/cloud-init-output.log
+#
+# CAP is the monthly bandwidth limit. Set it below your provider's free outbound data allowance.
+runcmd:
+  - [bash, -c, 'curl -fsSL https://raw.githubusercontent.com/Iridium-Group/iridium-proxy/main/deploy/setup-vm.sh | CAP=90GB bash']
