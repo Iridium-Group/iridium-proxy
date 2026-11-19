@@ -40,6 +40,15 @@ docker run -p 8080:8080 -e IRIDIUM_SECURITY__BLOCK_PRIVATE_ADDRESSES=true iridiu
 
 Put it behind TLS (a platform router or reverse proxy) so clients can use `wss://`.
 
+## Performance
+
+`npm run bench` pushes 256 MB through the Wisp endpoint to a local echo server and times 5000
+small round trips. On a shared cloud VM (loopback, Node client) it measured about 120 MB/s each
+way and a median of 0.03 ms added latency. That is well above a home connection, so in practice
+the limit is the server's own network link and the distance to it. Data is copied once per
+direction, sockets use `TCP_NODELAY`, and a slow client pauses reads from the target instead of
+buffering without limit.
+
 ## Security notes
 
 - Private and loopback targets are blocked by default. Keep `blockPrivateAddresses` on for any

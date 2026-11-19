@@ -115,6 +115,27 @@ describe('wisp', () => {
     }
   });
 
+  it('grants more credit for data sent while the host was still resolving', async () => {
+    const { proxy, port } = await start({ security: { blockPrivateAddresses: false } });
+    const c = client(port);
+    try {
+      await c.opened;
+      const initial = (await c.next((p) => p.type === PacketType.CONTINUE)) as {
+        bufferRemaining: number;
+      };
+      c.ws.send(encodeConnect(7, '127.0.0.1', echo.port));
+      // Spend the whole credit straight away, before the connection exists.
+      for (let i = 0; i < initial.bufferRemaining; i++) {
+        c.ws.send(encodeData(7, new Uint8Array([i & 255])));
+      }
+      const more = (await c.next((p) => p.type === PacketType.CONTINUE)) as { streamId: number };
+      assert.equal(more.streamId, 7);
+    } finally {
+      c.ws.close();
+      await proxy.close();
+    }
+  });
+
   it('blocks private addresses by default', async () => {
     const { proxy, port } = await start({});
     const c = client(port);

@@ -7,7 +7,6 @@ import {
   decodePacket,
   encodeClose,
   encodeContinue,
-  encodeData,
   isTransportError,
 } from '@iridium-group/transport';
 import type { WebSocket } from 'ws';
@@ -25,7 +24,21 @@ export interface WispOptions {
 
 interface Stream {
   socket: Socket;
+  /** DATA packets written since the last CONTINUE. */
   sinceContinue: number;
+}
+
+const DATA = PacketType.DATA;
+/** Pause TCP reads from targets while this many bytes are waiting to go to the client. */
+const HIGH_WATER = 1024 * 1024;
+
+/** Build a DATA frame with one allocation and one copy. */
+function dataFrame(id: number, chunk: Buffer): Buffer {
+  const frame = Buffer.allocUnsafe(5 + chunk.length);
+  frame[0] = DATA;
+  frame.writeUInt32LE(id, 1);
+  chunk.copy(frame, 5);
+  return frame;
 }
 
 function closeReason(error: unknown): number {
@@ -55,6 +68,44 @@ export function handleWispClient(ws: WebSocket, options: WispOptions): void {
   const send = (bytes: Uint8Array) => {
     if (ws.readyState === ws.OPEN) ws.send(bytes);
   };
+
+  // Backpressure toward the client: stop reading from targets while the WebSocket is backed up.
+  let paused = false;
+  const sendData = (id: number, chunk: Buffer) => {
+    if (ws.readyState !== ws.OPEN) return;
+    if (paused) {
+      ws.send(dataFrame(id, chunk));
+      return;
+    }
+    if (ws.bufferedAmount < HIGH_WATER) {
+      ws.send(dataFrame(id, chunk));
+      return;
+    }
+    paused = true;
+    for (const s of streams.values()) s.socket.pause();
+    ws.send(dataFrame(id, chunk), () => {
+      paused = false;
+      for (const s of streams.values()) s.socket.resume();
+    });
+  };
+
+  // Tell the client it may send more, once the target has taken what it sent so far.
+  const acknowledge = (id: number, stream: Stream) => {
+    stream.sinceContinue += 1;
+    if (stream.sinceContinue < bufferSize) return;
+    if (stream.socket.writableNeedDrain) {
+      stream.socket.once('drain', () => {
+        if (streams.get(id) !== stream) return;
+        stream.sinceContinue = 0;
+        send(encodeContinue(id, bufferSize));
+      });
+      // Stop counting more until that drain fires: further DATA still queues in the socket.
+      stream.sinceContinue = Number.NEGATIVE_INFINITY;
+      return;
+    }
+    stream.sinceContinue = 0;
+    send(encodeContinue(id, bufferSize));
+  };
   const end = (id: number, reason: number) => {
     streams.delete(id);
     send(encodeClose(id, reason));
@@ -81,7 +132,11 @@ export function handleWispClient(ws: WebSocket, options: WispOptions): void {
       });
       const stream: Stream = { socket, sinceContinue: 0 };
       streams.set(id, stream);
-      for (const chunk of pending.get(id) ?? []) socket.write(chunk);
+      socket.setNoDelay(true);
+      for (const chunk of pending.get(id) ?? []) {
+        socket.write(chunk);
+        acknowledge(id, stream);
+      }
       let connected = false;
       socket.on('connect', () => {
         connected = true;
@@ -94,7 +149,7 @@ export function handleWispClient(ws: WebSocket, options: WispOptions): void {
           end(id, CloseReason.CONNECT_TIMEOUT);
         }
       });
-      socket.on('data', (chunk: Buffer) => send(encodeData(id, new Uint8Array(chunk))));
+      socket.on('data', (chunk: Buffer) => sendData(id, chunk));
       socket.on('error', (error: NodeJS.ErrnoException) => {
         if (!streams.has(id)) return;
         end(
@@ -117,6 +172,16 @@ export function handleWispClient(ws: WebSocket, options: WispOptions): void {
 
   ws.on('message', (data: Buffer, isBinary: boolean) => {
     if (!isBinary) return ws.close(1003);
+    // Fast path for the common case: DATA on an open stream, with no decode copy.
+    if (data.length >= 5 && data[0] === DATA) {
+      const id = data.readUInt32LE(1);
+      const open = streams.get(id);
+      if (open) {
+        open.socket.write(data.subarray(5));
+        acknowledge(id, open);
+        return;
+      }
+    }
     let packet;
     try {
       packet = decodePacket(new Uint8Array(data));
@@ -140,18 +205,7 @@ export function handleWispClient(ws: WebSocket, options: WispOptions): void {
       }
       case PacketType.DATA: {
         const queued = pending.get(packet.streamId);
-        if (queued) {
-          queued.push(packet.payload.slice());
-          return;
-        }
-        const stream = streams.get(packet.streamId);
-        if (!stream) return;
-        stream.socket.write(packet.payload.slice());
-        stream.sinceContinue += 1;
-        if (stream.sinceContinue >= bufferSize) {
-          stream.sinceContinue = 0;
-          send(encodeContinue(packet.streamId, bufferSize));
-        }
+        if (queued) queued.push(packet.payload.slice());
         return;
       }
       case PacketType.CLOSE: {

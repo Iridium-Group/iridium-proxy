@@ -46,6 +46,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test --test-timeout=30000 'test/**/*.test.ts'",
     "start": "node bin/iridium-proxy.js",
+    "bench": "node bench/bench.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "npm run build"
