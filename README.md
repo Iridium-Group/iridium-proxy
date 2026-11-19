@@ -67,6 +67,33 @@ the limit is the server's own network link and the distance to it. Data is copie
 direction, sockets use `TCP_NODELAY`, and a slow client pauses reads from the target instead of
 buffering without limit.
 
+## Bandwidth cap
+
+To avoid surprise bills on a host that charges for outbound data, set a monthly cap:
+
+```sh
+IRIDIUM_MONTHLY_CAP=900MB IRIDIUM_USAGE_FILE=/var/lib/iridium-proxy/usage.json npm start
+```
+
+The proxy counts bytes in both directions per UTC month and saves the count to the usage file,
+so a restart does not reset it. At the cap it closes open streams and refuses new ones (Wisp
+close reason `0x49`) until the month rolls over. `/healthz` shows the current usage and cap.
+
+The cap counts only what this server relays. It does not include other traffic on the same
+machine, or charges for things like a static IP address, so check your provider's pricing as well.
+
+## Deploying on a VM
+
+`deploy/setup-vm.sh` installs everything on a fresh Ubuntu VM (for example an Oracle Cloud Always
+Free instance): Node, Caddy for automatic HTTPS, the proxy and browser client, and a systemd
+service that restarts on its own. Without a domain it uses `<your-ip>.nip.io`.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Iridium-Group/iridium-proxy/main/deploy/setup-vm.sh | sudo CAP=5TB bash
+```
+
+Also open ports 80 and 443 in the provider's own firewall (on Oracle: the VCN security list).
+
 ## Security notes
 
 - Private and loopback targets are blocked by default. Keep `blockPrivateAddresses` on for any

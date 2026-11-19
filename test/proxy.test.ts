@@ -69,7 +69,9 @@ describe('http', () => {
   it('answers /healthz', async () => {
     const res = await fetch(`http://127.0.0.1:${ctx.port}/healthz`);
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { status: 'ok' });
+    const body = (await res.json()) as { status: string; usage: { cap: number | null } };
+    assert.equal(body.status, 'ok');
+    assert.equal(body.usage.cap, null);
   });
   it('serves static files and index.html', async () => {
     const res = await fetch(`http://127.0.0.1:${ctx.port}/`);

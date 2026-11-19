@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ConfigError, loadConfig } from '@iridium-group/config';
 import { createProxyServer } from './server.ts';
+import { UsageMeter, parseSize } from './usage.ts';
 
 /** Load config, start the server, and stop cleanly on SIGINT/SIGTERM. Returns an exit code on failure. */
 export async function main(argv: readonly string[], env: NodeJS.ProcessEnv): Promise<number> {
@@ -20,7 +21,19 @@ export async function main(argv: readonly string[], env: NodeJS.ProcessEnv): Pro
   if (!existsSync(config.server.staticDir) && existsSync(bundled)) {
     config = { ...config, server: { ...config.server, staticDir: bundled } };
   }
-  const proxy = createProxyServer(config);
+  // Optional monthly bandwidth cap, e.g. IRIDIUM_MONTHLY_CAP=900MB. Not part of the config file.
+  let capBytes: number | null = null;
+  if (env.IRIDIUM_MONTHLY_CAP) {
+    capBytes = parseSize(env.IRIDIUM_MONTHLY_CAP);
+    if (capBytes === null) {
+      process.stderr.write(
+        `IRIDIUM_MONTHLY_CAP must be a size like 900MB or 2GB, got "${env.IRIDIUM_MONTHLY_CAP}"\n`,
+      );
+      return 1;
+    }
+  }
+  const usage = new UsageMeter({ capBytes, file: env.IRIDIUM_USAGE_FILE });
+  const proxy = createProxyServer(config, { usage });
   await proxy.listen(port);
   const stop = () => void proxy.close().then(() => process.exit(0));
   process.once('SIGINT', stop);
