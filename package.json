@@ -43,6 +43,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:web": "npm --prefix web ci && npm --prefix web run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test --test-timeout=30000 'test/**/*.test.ts'",
     "start": "node bin/iridium-proxy.js",

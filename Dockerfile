@@ -5,7 +5,8 @@ COPY package.json package-lock.json ./
 COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
 COPY bin ./bin
-RUN npm ci
+COPY web ./web
+RUN npm ci && npm run build:web
 
 FROM node:24-alpine
 WORKDIR /app
@@ -13,6 +14,7 @@ ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/bin ./bin
+COPY --from=build /app/web/public ./web/public
 COPY package.json ./
 USER node
 EXPOSE 8080

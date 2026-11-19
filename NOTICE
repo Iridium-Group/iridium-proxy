@@ -1,0 +1,12 @@
+Iridium proxy
+=============
+
+Everything outside web/ is MIT licensed (see LICENSE).
+
+web/ is the browser client. It loads and serves Scramjet, bare-mux, libcurl-transport (AGPL-3.0-only)
+and libcurl.js (LGPL-3.0-or-later), so web/ is licensed under AGPL-3.0-only (see web/LICENSE).
+Third-party notices are in web/THIRD_PARTY_LICENSES.txt.
+
+If you run a modified version of web/ as a network service you must offer your users its source
+under the AGPL. The client shows a "Source" link for this; point it at your own fork when you
+change it (see web/public/index.html).

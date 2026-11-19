@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Iridium</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="/scram/scramjet.all.js"></script>
+    <script src="/baremux/index.js"></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <strong>Iridium</strong>
+      <form id="form">
+        <input
+          id="address"
+          type="text"
+          placeholder="Search or enter a URL"
+          autocomplete="off"
+          autofocus
+        />
+        <button>Go</button>
+      </form>
+    </header>
+    <p id="status" role="status"></p>
+    <main id="stage"></main>
+    <footer>
+      <a href="https://github.com/Iridium-Group/iridium-proxy/tree/main/web">Source (AGPL-3.0)</a>
+      · <a href="/THIRD_PARTY_LICENSES.txt">Third-party licenses</a>
+    </footer>
+  </body>
+</html>
