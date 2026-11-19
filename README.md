@@ -10,6 +10,24 @@ WebSocket endpoint, and applies the security settings from your Iridium config t
   `blockPrivateAddresses` is on), and the connection goes to that exact address.
 - TCP streams only. UDP streams are refused with close reason `0x41`.
 
+## Browser client
+
+`web/` is a ready-made web proxy front end built on [Scramjet](https://github.com/MercuryWorkshop/scramjet),
+bare-mux and the libcurl transport, talking to this server's Wisp endpoint. Build it once and
+`npx iridium-proxy` serves it automatically when you have no `public/` folder of your own:
+
+```sh
+npm run build:web
+npm start          # open http://localhost:8080
+```
+
+`npm --prefix web test` loads a page through the whole stack in headless Chromium. It is tested
+against a local site only. Sites such as Discord or CAPTCHA pages depend on Scramjet's own site
+support and on the IP the server runs from (Scramjet's authors say CAPTCHAs and YouTube are
+unreliable from datacenter IPs); none of that is verified here.
+
+`web/` is AGPL-3.0 because of the libraries it loads; the rest of this repo is MIT. See `NOTICE`.
+
 ## Run
 
 ```sh

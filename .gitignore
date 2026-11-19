@@ -5,3 +5,8 @@ coverage/
 .env
 .env.*
 .DS_Store
+/web/public/scram/
+/web/public/baremux/
+/web/public/libcurl/
+/web/public/THIRD_PARTY_LICENSES.txt
+/web/public/LICENSE.txt

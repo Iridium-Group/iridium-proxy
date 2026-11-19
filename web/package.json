@@ -1,0 +1,20 @@
+{
+  "name": "@iridium-group/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser front end for Iridium: a Scramjet-based web proxy that talks to the Iridium Wisp endpoint.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs && cp THIRD_PARTY_LICENSES.txt public/",
+    "test": "node --test --test-timeout=120000 test/*.test.mjs"
+  },
+  "dependencies": {
+    "@mercuryworkshop/bare-mux": "^2.1.9",
+    "@mercuryworkshop/libcurl-transport": "1.5.2",
+    "@mercuryworkshop/scramjet": "1.1.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.1"
+  }
+}

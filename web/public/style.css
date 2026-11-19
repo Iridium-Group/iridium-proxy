@@ -1,0 +1,87 @@
+:root {
+  --bg: #fff;
+  --fg: #1a1d23;
+  --line: #e3e6eb;
+  --acc: #4f46e5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115;
+    --fg: #e6e8ec;
+    --line: #252a33;
+    --acc: #8b93ff;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    16px system-ui,
+    sans-serif;
+}
+header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+form {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+}
+input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+button {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--acc);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+#status {
+  margin: 0;
+  padding: 6px 12px;
+  min-height: 1.5em;
+}
+#status[data-bad='1'] {
+  color: #d33;
+}
+main {
+  flex: 1;
+  display: flex;
+}
+main iframe {
+  flex: 1;
+  border: 0;
+  width: 100%;
+}
+footer {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-top: 1px solid var(--line);
+}
+footer a {
+  color: inherit;
+}

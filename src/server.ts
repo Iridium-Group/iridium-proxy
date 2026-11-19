@@ -38,6 +38,9 @@ export function createProxyServer(config: IridiumConfig, options: ProxyOptions =
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
 
   const server = createServer(async (req, res) => {
+    // Needed for SharedArrayBuffer, which the browser client's transport layer uses.
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
     const pathname = (req.url ?? '/').split('?')[0];
     if (pathname === '/healthz') {
       res.writeHead(200, { 'content-type': 'application/json' });
