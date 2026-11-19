@@ -94,6 +94,8 @@ curl -fsSL https://raw.githubusercontent.com/Iridium-Group/iridium-proxy/main/de
 
 Also open ports 80 and 443 in the provider's own firewall (on Oracle: the VCN security list).
 
+Most clouds also let you paste `deploy/cloud-init.yaml` into the VM's "Custom data" / "User data" box, which runs the same install on first boot, with nothing to type over SSH.
+
 ## Security notes
 
 - Private and loopback targets are blocked by default. Keep `blockPrivateAddresses` on for any
