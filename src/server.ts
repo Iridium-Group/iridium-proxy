@@ -5,6 +5,7 @@ import { AddressPolicy, type LookupFunction } from '@iridium-group/transport';
 import { WebSocketServer } from 'ws';
 import { createLogger, type Logger } from './logger.ts';
 import { serveStatic } from './static.ts';
+import { UsageMeter } from './usage.ts';
 import { handleWispClient } from './wisp.ts';
 
 export interface ProxyServer {
@@ -16,6 +17,8 @@ export interface ProxyServer {
 
 export interface ProxyOptions {
   logger?: Logger;
+  /** Bandwidth meter. Defaults to a counter with no cap. */
+  usage?: UsageMeter;
   /** Replace DNS resolution, for tests. */
   lookup?: LookupFunction;
 }
@@ -33,6 +36,7 @@ export function createProxyServer(config: IridiumConfig, options: ProxyOptions =
     allowedPorts: config.security.allowedPorts,
     lookup: options.lookup,
   });
+  const usage = options.usage ?? new UsageMeter();
   const wispPath = normalizePath(config.server.wispPath);
   const basePath = config.server.basePath;
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
@@ -44,7 +48,7 @@ export function createProxyServer(config: IridiumConfig, options: ProxyOptions =
     const pathname = (req.url ?? '/').split('?')[0];
     if (pathname === '/healthz') {
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end('{"status":"ok"}\n');
+      res.end(`${JSON.stringify({ status: 'ok', usage: usage.snapshot() })}\n`);
       return;
     }
     if (normalizePath(pathname ?? '') === wispPath) {
@@ -66,7 +70,12 @@ export function createProxyServer(config: IridiumConfig, options: ProxyOptions =
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
       logger.debug('wisp client connected', { remote: req.socket.remoteAddress });
-      handleWispClient(ws, { policy, logger, connectTimeoutMs: config.transport.connectTimeoutMs });
+      handleWispClient(ws, {
+        policy,
+        logger,
+        connectTimeoutMs: config.transport.connectTimeoutMs,
+        usage,
+      });
     });
   });
 
@@ -84,6 +93,7 @@ export function createProxyServer(config: IridiumConfig, options: ProxyOptions =
       }),
     close: () =>
       new Promise((resolve) => {
+        usage.save();
         for (const client of wss.clients) client.close(1001);
         server.close(() => resolve());
         server.closeAllConnections();

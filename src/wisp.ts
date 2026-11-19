@@ -11,6 +11,7 @@ import {
 } from '@iridium-group/transport';
 import type { WebSocket } from 'ws';
 import type { Logger } from './logger.ts';
+import type { UsageMeter } from './usage.ts';
 
 export interface WispOptions {
   policy: AddressPolicy;
@@ -20,6 +21,8 @@ export interface WispOptions {
   bufferSize?: number;
   /** Most streams one client may have open at once. Default 256. */
   maxStreamsPerClient?: number;
+  /** Counts relayed bytes and refuses new streams once its cap is reached. */
+  usage?: UsageMeter;
 }
 
 interface Stream {
@@ -65,6 +68,19 @@ export function handleWispClient(ws: WebSocket, options: WispOptions): void {
   // Streams still resolving their host, with any data the client sent in the meantime.
   const pending = new Map<number, Uint8Array[]>();
 
+  const usage = options.usage;
+  // Count bytes; when the cap is reached, drop every open stream so nothing more is relayed.
+  const meter = (bytes: number) => {
+    if (usage?.add(bytes)) {
+      logger.warn('bandwidth cap reached, closing streams');
+      for (const [id, s] of streams) {
+        s.socket.destroy();
+        streams.delete(id);
+        send(encodeClose(id, CloseReason.THROTTLED));
+      }
+    }
+  };
+
   const send = (bytes: Uint8Array) => {
     if (ws.readyState === ws.OPEN) ws.send(bytes);
   };
@@ -73,6 +89,7 @@ export function handleWispClient(ws: WebSocket, options: WispOptions): void {
   let paused = false;
   const sendData = (id: number, chunk: Buffer) => {
     if (ws.readyState !== ws.OPEN) return;
+    meter(chunk.length);
     if (paused) {
       ws.send(dataFrame(id, chunk));
       return;
@@ -177,6 +194,7 @@ export function handleWispClient(ws: WebSocket, options: WispOptions): void {
       const id = data.readUInt32LE(1);
       const open = streams.get(id);
       if (open) {
+        meter(data.length - 5);
         open.socket.write(data.subarray(5));
         acknowledge(id, open);
         return;
@@ -197,6 +215,9 @@ export function handleWispClient(ws: WebSocket, options: WispOptions): void {
         if (streams.has(packet.streamId) || pending.has(packet.streamId)) {
           return send(encodeClose(packet.streamId, CloseReason.INVALID_INFO));
         }
+        if (usage?.exceeded) {
+          return send(encodeClose(packet.streamId, CloseReason.THROTTLED));
+        }
         if (streams.size + pending.size >= maxStreams) {
           return send(encodeClose(packet.streamId, CloseReason.THROTTLED));
         }
@@ -205,7 +226,10 @@ export function handleWispClient(ws: WebSocket, options: WispOptions): void {
       }
       case PacketType.DATA: {
         const queued = pending.get(packet.streamId);
-        if (queued) queued.push(packet.payload.slice());
+        if (queued) {
+          meter(packet.payload.length);
+          queued.push(packet.payload.slice());
+        }
         return;
       }
       case PacketType.CLOSE: {
