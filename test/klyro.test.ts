@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { gunzipSync } from 'node:zlib';
+import { request as rawRequest } from 'node:http';
 import { connect } from 'node:net';
 import { after, before, describe, it } from 'node:test';
 import { applyDefaults, type IridiumConfigInput } from '@iridium-group/config';
@@ -11,6 +12,9 @@ import {
   type ProxyServer,
 } from '../src/index.ts';
 import { PAGE, selfSignedCert, startOrigin, type Origin } from './fixtures/origin.ts';
+
+/** What a browser sends for a request made by a page on the same site. */
+const same = (s: { path: (p: string) => string }) => ({ referer: s.path('/page') });
 
 const lines: string[] = [];
 const logger = createLogger('debug', 'json', (l) => lines.push(l));
@@ -194,15 +198,67 @@ describe('klyro: HTTP', () => {
     const s = await h.session(url());
     const set = await fetch(s.path('/cookie-set'));
     assert.equal(set.headers.get('set-cookie'), null);
-    assert.match(await (await fetch(s.path('/cookie-echo'))).text(), /sid=abc123/);
+    assert.match(
+      await (await fetch(s.path('/cookie-echo'), { headers: same(s) })).text(),
+      /sid=abc123/,
+    );
+  });
+
+  it('sends stored cookies only on navigations or same-site requests (a SameSite-like rule)', async () => {
+    const s = await h.session(url());
+    await fetch(s.path('/cookie-set'));
+    const echo = (headers: Record<string, string>) =>
+      fetch(s.path('/cookie-echo'), { headers }).then((r) => r.text());
+    const foreign = `${h.base}/k/${s.sid}/http/other-site.test/page`;
+    assert.equal(
+      await echo({ referer: foreign }),
+      '',
+      'a request from another site gets no cookies',
+    );
+    assert.equal(await echo({}), '', 'no referer on a subresource request: cannot tell, so none');
+    // fetch() will not let a script set Sec-Fetch-* headers (as in a browser), so use a raw request.
+    const raw = (headers: Record<string, string>) =>
+      new Promise<string>((resolve, reject) => {
+        const r = rawRequest(s.path('/cookie-echo'), { headers }, (res) => {
+          let body = '';
+          res.on('data', (c) => (body += c));
+          res.on('end', () => resolve(body));
+        });
+        r.on('error', reject);
+        r.end();
+      });
+    assert.match(
+      await raw({ referer: foreign, 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }),
+      /sid=abc123/,
+      'top-level navigation keeps cookies',
+    );
+    assert.equal(
+      await raw({ referer: foreign, 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty' }),
+      '',
+      'a cross-site fetch does not',
+    );
+    assert.match(
+      await raw({}),
+      /sid=abc123/,
+      'a client with no fetch metadata (curl, scripts) is not a browser page, so it keeps cookies',
+    );
+    assert.match(await echo(same(s)), /sid=abc123/, 'same site');
+    assert.match(
+      await echo({ referer: `${h.base}/k/${s.sid}/http/sub.origin.test:${origin.port}/p` }),
+      /sid=abc123/,
+      'a sibling subdomain is the same site',
+    );
   });
 
   it('isolates sessions: cookies never cross', async () => {
     const a = await h.session(url());
     const b = await h.session(url());
     await fetch(a.path('/cookie-set'));
-    assert.match(await (await fetch(a.path('/cookie-echo'))).text(), /sid=abc123/);
-    assert.equal(await (await fetch(b.path('/cookie-echo'))).text(), '');
+    assert.match(
+      await (await fetch(a.path('/cookie-echo'), { headers: same(a) })).text(),
+      /sid=abc123/,
+    );
+    assert.equal(await (await fetch(b.path('/cookie-echo'), { headers: same(b) })).text(), '');
   });
 
   it('isolates sessions: a cached response is never served to another session', async () => {
@@ -308,8 +364,8 @@ describe('klyro: cache', () => {
     assert.equal(origin.hits.get('/cacheable-cookie'), 2);
     await fetch(s.path('/cookie-set'));
     const before = origin.hits.get('/cacheable') ?? 0;
-    await fetch(s.path('/cacheable'));
-    await fetch(s.path('/cacheable'));
+    await fetch(s.path('/cacheable'), { headers: same(s) });
+    await fetch(s.path('/cacheable'), { headers: same(s) });
     assert.equal(
       (origin.hits.get('/cacheable') ?? 0) - before,
       2,

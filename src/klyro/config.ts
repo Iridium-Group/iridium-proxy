@@ -54,6 +54,7 @@ export const DEFAULT_KLYRO_CONFIG: KlyroConfig = {
 
 export type EnvSource = Record<string, string | undefined>;
 
+/** A non-negative number from the environment, multiplied by `scale` (for example seconds to ms). `fallback` is already in the final unit. */
 function num(env: EnvSource, key: string, fallback: number, scale = 1): number {
   const raw = env[key];
   if (raw === undefined || raw === '') return fallback;
@@ -77,7 +78,7 @@ export function klyroConfigFromEnv(env: EnvSource = process.env): KlyroConfig {
   return {
     enabled: env.KLYRO_ENABLED !== '0',
     maxSessions: num(env, 'MAX_SESSIONS', d.maxSessions),
-    sessionTtlMs: num(env, 'SESSION_TTL', d.sessionTtlMs / 1000, 1000),
+    sessionTtlMs: num(env, 'SESSION_TTL', d.sessionTtlMs, 1000),
     maxConnections: Math.max(1, num(env, 'MAX_CONNECTIONS', d.maxConnections)),
     maxRequestBytes: size(env, 'MAX_REQUEST_SIZE', d.maxRequestBytes),
     maxResponseBytes: size(env, 'MAX_RESPONSE_SIZE', d.maxResponseBytes),
@@ -86,7 +87,7 @@ export function klyroConfigFromEnv(env: EnvSource = process.env): KlyroConfig {
     cacheItemBytes: size(env, 'CACHE_ITEM_SIZE', d.cacheItemBytes),
     requestTimeoutMs: num(env, 'REQUEST_TIMEOUT', d.requestTimeoutMs),
     idleTimeoutMs: num(env, 'IDLE_TIMEOUT', d.idleTimeoutMs),
-    dnsTtlMs: num(env, 'DNS_TTL', d.dnsTtlMs / 1000, 1000),
+    dnsTtlMs: num(env, 'DNS_TTL', d.dnsTtlMs, 1000),
     ratePerMinute: num(env, 'RATE_LIMIT', d.ratePerMinute),
     pool: env.KLYRO_POOL !== '0',
     forceTransform: env.KLYRO_FORCE_TRANSFORM === '1',
