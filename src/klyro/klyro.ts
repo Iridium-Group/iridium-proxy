@@ -12,6 +12,7 @@ import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
 import { AddressPolicy } from '@iridium-group/transport';
+import { getDomain } from 'tldts';
 import { WebSocket, WebSocketServer } from 'ws';
 import { MemoryCache, type CachedResponse } from './cache.ts';
 import { DEFAULT_KLYRO_CONFIG, type KlyroConfig } from './config.ts';
@@ -97,6 +98,16 @@ const DROP_RESPONSE = new Set([
 const SAFE_ENCODINGS = new Set(['gzip', 'deflate', 'br', 'identity']);
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const METHODS = new Set(['GET', 'HEAD', 'OPTIONS', ...BODY_METHODS]);
+
+/**
+ * The registrable domain of a host ("a.b.example.co.uk" -> "example.co.uk"), or the host itself
+ * for IP addresses and names with no public suffix.
+ */
+export function siteOf(host: string): string {
+  const h = host.replace(/^\[|\]$/g, '').toLowerCase();
+  // getDomain returns null for IP addresses and single-label names such as "localhost".
+  return getDomain(h, { allowPrivateDomains: true }) ?? h;
+}
 
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
@@ -310,8 +321,6 @@ export function createKlyro(options: KlyroOptions): Klyro {
     out['host'] = target.host;
     const range = first(req.headers['range']);
     if (range && /^bytes=[\d,\s-]+$/.test(range)) out['range'] = range;
-    const cookie = await session.jar.getCookieString(target.href);
-    if (cookie) out['cookie'] = cookie;
     // Referer/Origin: report the upstream page, never the proxy's own address.
     let refererUrl: URL | null = null;
     const ref = first(req.headers['referer']);
@@ -322,6 +331,19 @@ export function createKlyro(options: KlyroOptions): Klyro {
       } catch {
         // Ignore an unparsable referer.
       }
+    }
+    // Every proxied site shares the proxy's browser origin, so a page from one site could ask
+    // for another. Send stored cookies only on top-level navigations or when the request comes
+    // from a page on the same site (a SameSite=Lax-like rule). No referer on a subresource
+    // request means we cannot tell, so cookies are withheld.
+    const topLevel =
+      first(req.headers['sec-fetch-mode']) === 'navigate' &&
+      first(req.headers['sec-fetch-dest']) === 'document';
+    const sameSite = refererUrl !== null && siteOf(refererUrl.hostname) === siteOf(target.hostname);
+    const hasFetchMetadata = req.headers['sec-fetch-mode'] !== undefined;
+    if (topLevel || sameSite || !hasFetchMetadata) {
+      const cookie = await session.jar.getCookieString(target.href);
+      if (cookie) out['cookie'] = cookie;
     }
     if (refererUrl) out['referer'] = refererUrl.href;
     if (first(req.headers['origin']) || BODY_METHODS.has(req.method ?? 'GET')) {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { chooseRoute } from '../src/klyro/detect.ts';
+import { siteOf } from '../src/klyro/klyro.ts';
 import { rewriteCss } from '../src/klyro/css.ts';
 import { transformHtml } from '../src/klyro/html.ts';
 import { decodeProxyPath, encodeProxyPath, proxify } from '../src/klyro/proxyurl.ts';
@@ -152,5 +153,21 @@ describe('html transformer', () => {
   });
   it('injects into a fragment that has no <head>', () => {
     assert.ok(run('<p>x</p>', true).startsWith('<script src="/klyro/shim.js"'));
+  });
+});
+
+describe('siteOf', () => {
+  it('finds the registrable domain', () => {
+    assert.equal(siteOf('www.example.com'), 'example.com');
+    assert.equal(siteOf('a.b.example.co.uk'), 'example.co.uk');
+    assert.equal(siteOf('example.com'), 'example.com');
+    assert.equal(siteOf('127.0.0.1'), '127.0.0.1');
+    assert.equal(siteOf('[::1]'), '::1');
+    assert.equal(siteOf('localhost'), 'localhost');
+    assert.notEqual(
+      siteOf('evil.github.io'),
+      siteOf('good.github.io'),
+      'public suffixes separate tenants',
+    );
   });
 });
