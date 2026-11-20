@@ -1,0 +1,149 @@
+:root {
+  --bg: #0b0d12;
+  --panel: #12151c;
+  --line: #232733;
+  --fg: #d7dae0;
+  --mut: #7d8494;
+  --acc: #8b93ff;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    15px/1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+}
+main {
+  width: min(36rem, 100% - 2rem);
+  margin: 0 auto;
+  padding-top: 14vh;
+  flex: 1;
+}
+h1 {
+  margin: 0 0 1.25rem;
+  font-size: 1.6rem;
+  letter-spacing: 0.35em;
+  font-weight: 600;
+}
+h2 {
+  margin: 1.8rem 0 0.4rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mut);
+  font-weight: 500;
+}
+form {
+  display: flex;
+  gap: 0.5rem;
+}
+input[type='text'] {
+  flex: 1;
+  min-width: 0;
+  padding: 0.7rem 0.8rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--fg);
+  font: inherit;
+}
+input[type='text']:focus {
+  outline: 1px solid var(--acc);
+  border-color: var(--acc);
+}
+button[type='submit'] {
+  padding: 0.7rem 1.2rem;
+  background: var(--acc);
+  border: 0;
+  border-radius: 4px;
+  color: #0b0d12;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+#note {
+  min-height: 1.4em;
+  margin: 0.5rem 0 0;
+  color: #e08a8a;
+  font-size: 0.85rem;
+}
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+}
+li a {
+  color: var(--fg);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+li a:hover {
+  color: var(--acc);
+}
+li button {
+  background: none;
+  border: 0;
+  color: var(--mut);
+  cursor: pointer;
+  font: inherit;
+}
+li.empty {
+  color: var(--mut);
+  border: 0;
+}
+label {
+  display: block;
+  color: var(--mut);
+  font-size: 0.85rem;
+}
+button.link {
+  margin-top: 0.4rem;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--acc);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+footer {
+  padding: 1rem;
+  text-align: center;
+  color: var(--mut);
+  font-size: 0.75rem;
+}
+footer a {
+  color: inherit;
+}
+@media (prefers-reduced-motion: no-preference) {
+  input[type='text'],
+  button {
+    transition:
+      border-color 0.12s,
+      outline-color 0.12s;
+  }
+}
