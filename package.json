@@ -55,6 +55,9 @@
   "dependencies": {
     "@iridium-group/config": "github:Iridium-Group/iridium-config",
     "@iridium-group/transport": "github:Iridium-Group/iridium-transport",
+    "entities": "^9.0.0",
+    "htmlparser2": "^12.0.0",
+    "tough-cookie": "^6.1.0",
     "ws": "^8.20.0"
   },
   "devDependencies": {

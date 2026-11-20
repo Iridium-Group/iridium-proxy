@@ -1,8 +1,10 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { IridiumConfig } from '@iridium-group/config';
-import { AddressPolicy, type LookupFunction } from '@iridium-group/transport';
+import type { LookupFunction } from '@iridium-group/transport';
 import { WebSocketServer } from 'ws';
+import { createKlyro, type Klyro } from './klyro/klyro.ts';
+import { klyroConfigFromEnv, type KlyroConfig } from './klyro/config.ts';
 import { createLogger, type Logger } from './logger.ts';
 import { serveStatic } from './static.ts';
 import { UsageMeter } from './usage.ts';
@@ -10,6 +12,8 @@ import { handleWispClient } from './wisp.ts';
 
 export interface ProxyServer {
   server: Server;
+  /** The native HTTP proxy (sessions, cache, pool, metrics). */
+  klyro: Klyro;
   /** Start listening on the configured host and port (or `port` to override, 0 for any). */
   listen(port?: number): Promise<AddressInfo>;
   close(): Promise<void>;
@@ -21,6 +25,10 @@ export interface ProxyOptions {
   usage?: UsageMeter;
   /** Replace DNS resolution, for tests. */
   lookup?: LookupFunction;
+  /** Klyro limits. Defaults come from the environment (MAX_SESSIONS, CACHE_SIZE, ...). */
+  klyro?: Partial<KlyroConfig>;
+  /** Extra trusted CA certificates for origin TLS (tests and private origins). */
+  ca?: string | Buffer;
 }
 
 function normalizePath(path: string): string {
@@ -30,18 +38,26 @@ function normalizePath(path: string): string {
 /** Build the server described by a resolved config. Nothing listens until `listen()`. */
 export function createProxyServer(config: IridiumConfig, options: ProxyOptions = {}): ProxyServer {
   const logger = options.logger ?? createLogger(config.logging.level, config.logging.format);
-  const policy = new AddressPolicy({
-    blockPrivateAddresses: config.security.blockPrivateAddresses,
-    blockedPorts: config.security.blockedPorts,
-    allowedPorts: config.security.allowedPorts,
-    lookup: options.lookup,
+  const klyro = createKlyro({
+    logger,
+    config: { ...klyroConfigFromEnv(), ...options.klyro },
+    security: {
+      blockPrivateAddresses: config.security.blockPrivateAddresses,
+      blockedPorts: config.security.blockedPorts,
+      ...(config.security.allowedPorts ? { allowedPorts: config.security.allowedPorts } : {}),
+    },
+    ...(options.lookup ? { resolve: options.lookup } : {}),
+    ...(options.ca ? { ca: options.ca } : {}),
   });
+  // Wisp shares Klyro's address policy, so both get the same validation and cached DNS.
+  const policy = klyro.address;
   const usage = options.usage ?? new UsageMeter();
   const wispPath = normalizePath(config.server.wispPath);
   const basePath = config.server.basePath;
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
 
   const server = createServer(async (req, res) => {
+    if (await klyro.handle(req, res)) return;
     // Needed for SharedArrayBuffer, which the browser client's transport layer uses.
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
     res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
@@ -62,6 +78,7 @@ export function createProxyServer(config: IridiumConfig, options: ProxyOptions =
   });
 
   server.on('upgrade', (req, socket, head) => {
+    if (klyro.upgrade(req, socket, head)) return;
     const pathname = (req.url ?? '/').split('?')[0] ?? '';
     if (normalizePath(pathname) !== wispPath) {
       socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
@@ -81,6 +98,7 @@ export function createProxyServer(config: IridiumConfig, options: ProxyOptions =
 
   return {
     server,
+    klyro,
     listen: (port) =>
       new Promise((resolve, reject) => {
         server.once('error', reject);
@@ -94,6 +112,7 @@ export function createProxyServer(config: IridiumConfig, options: ProxyOptions =
     close: () =>
       new Promise((resolve) => {
         usage.save();
+        void klyro.close();
         for (const client of wss.clients) client.close(1001);
         server.close(() => resolve());
         server.closeAllConnections();

@@ -1,0 +1,227 @@
+/** A controlled origin server for Klyro tests and benchmarks. Everything stays on 127.0.0.1. */
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import {
+  createServer as createHttp,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from 'node:http';
+import { createServer as createHttps } from 'node:https';
+import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
+import { WebSocketServer } from 'ws';
+
+export interface Origin {
+  port: number;
+  server: Server;
+  /** Requests received per path. */
+  hits: Map<string, number>;
+  /** Headers of the most recent request per path. */
+  lastHeaders: Map<string, IncomingMessage['headers']>;
+  /** Resolve this to let /gate continue after the client got the first chunk. */
+  gate: { open: () => void };
+  close(): Promise<void>;
+}
+
+export function selfSignedCert(host = 'origin.test') {
+  const dir = mkdtempSync(join(tmpdir(), 'klyro-cert-'));
+  execFileSync(
+    'openssl',
+    [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-nodes',
+      '-keyout',
+      join(dir, 'k.pem'),
+      '-out',
+      join(dir, 'c.pem'),
+      '-subj',
+      `/CN=${host}`,
+      '-days',
+      '2',
+      '-addext',
+      `subjectAltName=DNS:${host}`,
+    ],
+    { stdio: 'ignore' },
+  );
+  return { key: readFileSync(join(dir, 'k.pem')), cert: readFileSync(join(dir, 'c.pem')) };
+}
+
+export const PAGE = `<!doctype html><html><head><title>fixture</title><link rel="stylesheet" href="/style.css"><script src="/app.js"></script></head><body><h1 id="hi">hello</h1><a href="/other">other</a><img src="img.png"></body></html>`;
+
+export async function startOrigin(
+  options: { tls?: { key: Buffer; cert: Buffer } } = {},
+): Promise<Origin> {
+  const hits = new Map<string, number>();
+  const lastHeaders = new Map<string, IncomingMessage['headers']>();
+  let openGate!: () => void;
+  let gatePromise = new Promise<void>((r) => (openGate = r));
+  const big = Buffer.alloc(8 * 1024 * 1024, 7);
+  const html = Buffer.from(PAGE);
+
+  const handler = async (req: IncomingMessage, res: ServerResponse) => {
+    const url = new URL(req.url ?? '/', 'http://x');
+    const path = url.pathname;
+    hits.set(path, (hits.get(path) ?? 0) + 1);
+    lastHeaders.set(path, req.headers);
+    const send = (
+      status: number,
+      headers: Record<string, string | number | string[]>,
+      body?: Buffer | string,
+    ) => {
+      res.writeHead(status, headers);
+      res.end(body);
+    };
+    switch (path) {
+      case '/static.html':
+        return send(200, { 'content-type': 'text/html; charset=utf-8' }, html);
+      case '/style.css':
+        return send(200, { 'content-type': 'text/css' }, 'body{background:url(/bg.png)}');
+      case '/app.js':
+        return send(200, { 'content-type': 'application/javascript' }, 'document.title="js ran";');
+      case '/gzip.html':
+        return send(
+          200,
+          { 'content-type': 'text/html', 'content-encoding': 'gzip' },
+          gzipSync(html),
+        );
+      case '/gzip.js': {
+        const body = gzipSync('console.log("hi")'.repeat(100));
+        return send(
+          200,
+          {
+            'content-type': 'application/javascript',
+            'content-encoding': 'gzip',
+            'content-length': body.length,
+          },
+          body,
+        );
+      }
+      case '/big':
+        return send(
+          200,
+          { 'content-type': 'application/octet-stream', 'content-length': big.length },
+          big,
+        );
+      case '/video.mp4':
+        return send(200, { 'content-type': 'video/mp4', 'content-length': big.length }, big);
+      case '/range': {
+        const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '');
+        const data = Buffer.from('0123456789'.repeat(10));
+        if (!m) return send(200, { 'content-type': 'text/plain', 'accept-ranges': 'bytes' }, data);
+        const start = Number(m[1]);
+        const end = m[2] ? Number(m[2]) : data.length - 1;
+        return send(
+          206,
+          { 'content-type': 'text/plain', 'content-range': `bytes ${start}-${end}/${data.length}` },
+          data.subarray(start, end + 1),
+        );
+      }
+      case '/gate': {
+        res.writeHead(200, { 'content-type': 'application/octet-stream' });
+        res.write('first');
+        await gatePromise;
+        res.end('second');
+        return;
+      }
+      case '/redirect':
+        return send(302, { location: '/static.html' });
+      case '/redirect-abs':
+        return send(302, { location: url.searchParams.get('to') ?? '/' });
+      case '/redirect-loop':
+        return send(302, { location: '/redirect-loop' });
+      case '/cookie-set':
+        return send(
+          200,
+          {
+            'content-type': 'text/plain',
+            'set-cookie': ['sid=abc123; Path=/', 'theme=dark; Path=/'],
+          },
+          'ok',
+        );
+      case '/cookie-echo':
+        return send(200, { 'content-type': 'text/plain' }, req.headers.cookie ?? '');
+      case '/headers':
+        return send(200, { 'content-type': 'application/json' }, JSON.stringify(req.headers));
+      case '/cacheable':
+        return send(
+          200,
+          { 'content-type': 'text/plain', 'cache-control': 'max-age=60', etag: '"v1"' },
+          'cached body',
+        );
+      case '/revalidate': {
+        if (req.headers['if-none-match'] === '"r1"')
+          return send(304, { etag: '"r1"', 'cache-control': 'max-age=0' });
+        return send(
+          200,
+          { 'content-type': 'text/plain', 'cache-control': 'max-age=0', etag: '"r1"' },
+          'revalidated body',
+        );
+      }
+      case '/no-store':
+        return send(
+          200,
+          { 'content-type': 'text/plain', 'cache-control': 'no-store, max-age=60' },
+          'secret',
+        );
+      case '/cacheable-cookie':
+        return send(
+          200,
+          { 'content-type': 'text/plain', 'cache-control': 'max-age=60', 'set-cookie': 'x=1' },
+          'body',
+        );
+      case '/echo': {
+        const chunks: Buffer[] = [];
+        for await (const c of req) chunks.push(c as Buffer);
+        return send(200, { 'content-type': 'application/octet-stream' }, Buffer.concat(chunks));
+      }
+      case '/csp':
+        return send(
+          200,
+          {
+            'content-type': 'text/html',
+            'content-security-policy': "default-src 'none'",
+            'x-frame-options': 'DENY',
+          },
+          html,
+        );
+      case '/slow':
+        return void setTimeout(() => send(200, {}, 'late'), 3000);
+      case '/private-redirect':
+        return send(302, { location: 'http://localhost:1/secret' });
+      default:
+        return send(404, { 'content-type': 'text/plain' }, 'not found');
+    }
+  };
+
+  const server = options.tls ? createHttps(options.tls, handler) : createHttp(handler);
+  const wss = new WebSocketServer({ server, path: '/ws-echo' });
+  wss.on('connection', (ws, req) => {
+    ws.send(`cookie:${req.headers.cookie ?? ''}`);
+    ws.on('message', (d, isBinary) => ws.send(d, { binary: isBinary }));
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  return {
+    port: (server.address() as AddressInfo).port,
+    server,
+    hits,
+    lastHeaders,
+    gate: {
+      open: () => {
+        openGate();
+        gatePromise = new Promise<void>((r) => (openGate = r));
+      },
+    },
+    close: () =>
+      new Promise((resolve) => {
+        wss.close();
+        server.close(() => resolve());
+        server.closeAllConnections();
+      }),
+  };
+}
