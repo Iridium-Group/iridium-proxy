@@ -16,9 +16,12 @@ export async function main(argv: readonly string[], env: NodeJS.ProcessEnv): Pro
   }
   // Hosting platforms hand the port over as PORT.
   const port = env.PORT && !env.IRIDIUM_SERVER__PORT ? Number(env.PORT) : config.server.port;
-  // With no static directory of your own, serve the bundled browser client if it is built.
-  const bundled = fileURLToPath(new URL('../web/public/', import.meta.url));
-  if (!existsSync(config.server.staticDir) && existsSync(bundled)) {
+  // With no static directory of your own, serve Klyro's page (or the Scramjet client with
+  // KLYRO_UI=compat, if it has been built).
+  const bundled = fileURLToPath(
+    new URL(env.KLYRO_UI === 'compat' ? '../web/public/' : '../ui/', import.meta.url),
+  );
+  if ((!existsSync(config.server.staticDir) || env.KLYRO_UI === 'compat') && existsSync(bundled)) {
     config = { ...config, server: { ...config.server, staticDir: bundled } };
   }
   // Optional monthly bandwidth cap, e.g. IRIDIUM_MONTHLY_CAP=900MB. Not part of the config file.

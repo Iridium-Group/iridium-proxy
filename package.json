@@ -24,7 +24,8 @@
     "node": ">=22.18"
   },
   "bin": {
-    "iridium-proxy": "./bin/iridium-proxy.js"
+    "iridium-proxy": "./bin/iridium-proxy.js",
+    "klyro": "./bin/klyro.js"
   },
   "exports": {
     ".": {
@@ -37,9 +38,14 @@
   "files": [
     "bin",
     "dist",
+    "ui",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "web/public",
+    "web/LICENSE",
+    "NOTICE",
+    "THIRD_PARTY.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -50,7 +56,8 @@
     "bench": "node bench/bench.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "bench:suite": "node bench/suite.ts"
   },
   "dependencies": {
     "@iridium-group/config": "github:Iridium-Group/iridium-config",

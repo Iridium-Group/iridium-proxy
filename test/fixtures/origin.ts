@@ -63,6 +63,32 @@ export async function startOrigin(
   let gatePromise = new Promise<void>((r) => (openGate = r));
   const big = Buffer.alloc(8 * 1024 * 1024, 7);
   const html = Buffer.from(PAGE);
+  // Workload fixtures, built once and deterministic.
+  const largeHtml = Buffer.from(
+    `<!doctype html><html><head><title>large</title></head><body>${Array.from({ length: 12000 }, (_, i) => `<div class="row" id="r${i}"><a href="/item/${i}">item ${i}</a><img src="/assets/${i % 50}.png" alt="a${i}"></div>`).join('')}</body></html>`,
+  );
+  const cssFile = Buffer.from(
+    Array.from(
+      { length: 1500 },
+      (_, i) =>
+        `.c${i}{background:url(/assets/${i % 50}.png);color:#${(i * 2654435).toString(16).slice(0, 6).padStart(6, '0')}}`,
+    ).join('\n'),
+  );
+  const jsFile = Buffer.from(
+    `"use strict";${Array.from({ length: 2500 }, (_, i) => `function f${i}(a,b){return a*${i}+b}`).join('')}`,
+  );
+  const png = Buffer.alloc(2048, 3);
+  const pageWith = (tags: string) =>
+    Buffer.from(`<!doctype html><html><head><title>w</title>${tags}</head><body>ok</body></html>`);
+  const cssPage = pageWith(
+    Array.from({ length: 20 }, (_, i) => `<link rel="stylesheet" href="/css/${i}.css">`).join(''),
+  );
+  const jsPage = pageWith(
+    Array.from({ length: 20 }, (_, i) => `<script src="/js/${i}.js"></script>`).join(''),
+  );
+  const manyPage = Buffer.from(
+    `<!doctype html><html><body>${Array.from({ length: 100 }, (_, i) => `<img src="/assets/${i}.png">`).join('')}</body></html>`,
+  );
 
   const handler = async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', 'http://x');
@@ -78,12 +104,35 @@ export async function startOrigin(
       res.end(body);
     };
     switch (path) {
+      case '/large.html':
+        return send(200, { 'content-type': 'text/html; charset=utf-8' }, largeHtml);
+      case '/css-heavy.html':
+        return send(200, { 'content-type': 'text/html; charset=utf-8' }, cssPage);
+      case '/js-heavy.html':
+        return send(200, { 'content-type': 'text/html; charset=utf-8' }, jsPage);
+      case '/many.html':
+        return send(200, { 'content-type': 'text/html; charset=utf-8' }, manyPage);
+      case '/image.png':
+        return send(200, { 'content-type': 'image/png', 'content-length': big.length }, big);
+      case '/stream': {
+        res.writeHead(200, { 'content-type': 'application/octet-stream' });
+        const chunk = Buffer.alloc(64 * 1024, 5);
+        for (let i = 0; i < 32; i++)
+          if (!res.write(chunk)) await new Promise((r) => res.once('drain', r));
+        return void res.end();
+      }
       case '/static.html':
         return send(200, { 'content-type': 'text/html; charset=utf-8' }, html);
       case '/style.css':
         return send(200, { 'content-type': 'text/css' }, 'body{background:url(/bg.png)}');
       case '/app.js':
         return send(200, { 'content-type': 'application/javascript' }, 'document.title="js ran";');
+      case '/cacheable-asset':
+        return send(
+          200,
+          { 'content-type': 'image/png', 'cache-control': 'max-age=300', etag: '"a1"' },
+          png,
+        );
       case '/gzip.html':
         return send(
           200,
@@ -194,8 +243,23 @@ export async function startOrigin(
         return void setTimeout(() => send(200, {}, 'late'), 3000);
       case '/private-redirect':
         return send(302, { location: 'http://localhost:1/secret' });
-      default:
+      default: {
+        if (/^\/assets\/\d+\.png$/.test(path))
+          return send(
+            200,
+            { 'content-type': 'image/png', 'cache-control': 'max-age=300', etag: `"p${path}"` },
+            png,
+          );
+        if (/^\/css\/\d+\.css$/.test(path))
+          return send(200, { 'content-type': 'text/css', 'cache-control': 'max-age=300' }, cssFile);
+        if (/^\/js\/\d+\.js$/.test(path))
+          return send(
+            200,
+            { 'content-type': 'application/javascript', 'cache-control': 'max-age=300' },
+            jsFile,
+          );
         return send(404, { 'content-type': 'text/plain' }, 'not found');
+      }
     }
   };
 
