@@ -16,10 +16,9 @@ import { getDomain } from 'tldts';
 import { WebSocket, WebSocketServer } from 'ws';
 import { MemoryCache, type CachedResponse } from './cache.ts';
 import { DEFAULT_KLYRO_CONFIG, type KlyroConfig } from './config.ts';
-import { rewriteCss } from './css.ts';
 import { chooseRoute } from './detect.ts';
 import { DnsCache } from './dns.ts';
-import { transformHtml } from './html.ts';
+import { Transformer } from './transformer.ts';
 import { Metrics } from './metrics.ts';
 import { OriginPool } from './pool.ts';
 import { Policy, PolicyError } from './policy.ts';
@@ -141,6 +140,7 @@ export interface Klyro {
   cache: MemoryCache;
   pool: OriginPool;
   dns: DnsCache;
+  transformer: Transformer;
   policy: Policy;
   config: KlyroConfig;
   /** Stop accepting work and release sockets and timers. */
@@ -185,6 +185,10 @@ export function createKlyro(options: KlyroOptions): Klyro {
     maxItemBytes: config.cacheItemBytes,
   });
   const limiter = new RateLimiter(config.ratePerMinute);
+  const transformer = new Transformer({
+    workers: config.transformWorkers,
+    offloadBytes: config.transformOffloadBytes,
+  });
 
   const countRequest = metrics.counter(
     'klyro_requests_total',
@@ -623,17 +627,7 @@ export function createKlyro(options: KlyroOptions): Klyro {
       countBytesIn(raw.length);
       const t1 = performance.now();
       const label = charsetOf(first(ures.headers['content-type']));
-      let text: string;
-      try {
-        text = new TextDecoder(label).decode(raw);
-      } catch {
-        text = new TextDecoder('utf-8').decode(raw);
-      }
-      const out = Buffer.from(
-        route === 'html'
-          ? transformHtml(text, { base: target, sid: session.id })
-          : rewriteCss(text, target, session.id),
-      );
+      const out = Buffer.from(await transformer.run(route, raw, label, target.href, session.id));
       observeTransform((performance.now() - t1) / 1000);
       delete base['content-encoding'];
       delete base['etag'];
@@ -942,12 +936,14 @@ export function createKlyro(options: KlyroOptions): Klyro {
     cache,
     pool,
     dns,
+    transformer,
     policy,
     config,
     address,
     async close() {
       closing = true;
       sessions.stop();
+      await transformer.close();
       for (const c of wss.clients) c.close(1001);
       pool.destroy();
     },
