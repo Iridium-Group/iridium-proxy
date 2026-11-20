@@ -57,7 +57,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "npm run build",
-    "bench:suite": "node bench/suite.ts"
+    "bench:suite": "node bench/suite.ts",
+    "bench:browser": "node web/bench/browser.ts"
   },
   "dependencies": {
     "@iridium-group/config": "github:Iridium-Group/iridium-config",
