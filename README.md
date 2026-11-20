@@ -1,141 +1,96 @@
-# @iridium-group/proxy
+# Klyro
 
-A Node server for Iridium. It serves static files and a [Wisp v1](https://github.com/MercuryWorkshop/wisp-protocol)
-WebSocket endpoint, and applies the security settings from your Iridium config to every stream.
+Klyro is Iridium Group's next-generation high-performance web-access and proxy platform.
 
-- Configured with [`@iridium-group/config`](https://github.com/Iridium-Group/iridium-config): file,
-  `IRIDIUM_*` environment overrides and validation.
-- Policy comes from [`@iridium-group/transport`](https://github.com/Iridium-Group/iridium-transport)'s
-  `AddressPolicy`: the host is resolved first, refused if any answer is private (when
-  `blockPrivateAddresses` is on), and the connection goes to that exact address.
-- TCP streams only. UDP streams are refused with close reason `0x41`.
+It grew out of `iridium-proxy` and keeps everything that was there (a Wisp v1 relay, a Scramjet-based
+browser client, the address policy, the bandwidth cap), and adds a **native HTTP proxy** designed
+around one idea: _every transformation must have a reason._
 
-## Browser client
-
-`web/` is a ready-made web proxy front end built on [Scramjet](https://github.com/MercuryWorkshop/scramjet),
-bare-mux and the libcurl transport, talking to this server's Wisp endpoint. Build it once and
-`npx iridium-proxy` serves it automatically when you have no `public/` folder of your own:
-
-```sh
-npm run build:web
-npm start          # open http://localhost:8080
+```
+request -> policy -> cache -> connection pool -> origin
+                                   |
+                  response headers decide the path:
+                    HTML / CSS  -> rewrite (worker threads for big pages)
+                    everything else -> stream straight through (fast path)
 ```
 
-`npm --prefix web test` loads a page through the whole stack in headless Chromium. It is tested
-against a local site only. Sites such as Discord or CAPTCHA pages depend on Scramjet's own site
-support and on the IP the server runs from (Scramjet's authors say CAPTCHAs and YouTube are
-unreliable from datacenter IPs); none of that is verified here.
+## Status and honest numbers
 
-`web/` is AGPL-3.0 because of the libraries it loads; the rest of this repo is MIT. See `NOTICE`.
+Klyro has a **5x performance target**. That is a target, not a result. Measured so far
+([full numbers](docs/BENCHMARKS.md)):
 
-## Run
+- Against Klyro with its own connection pool and cache switched off: **0.81x to 4.73x**, depending on
+  the workload (best on asset-heavy page loads). The 5x target was **not met** on any workload.
+- Against a direct connection: slower on single requests, roughly level on cached page loads. A proxy
+  cannot beat no proxy.
+- In headless Chromium on a page with 100 images: about **3.3x faster cold and 2.75x faster warm
+  than the Scramjet client** in this repo. Scramjet supports more sites because it rewrites JavaScript.
+
+No real third-party website has been tested (no internet access in the build environment), so
+compatibility with Discord, CAPTCHAs, and big web apps is **unknown**; see
+[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). Klyro refuses sign-in pages on purpose.
+
+## Run it
+
+Node 22.18 or newer.
 
 ```sh
 npm ci && npm run build
-npm start                        # reads $IRIDIUM_CONFIG or ./iridium.config.json
-npm start -- path/to/config.json
+npx klyro                    # http://localhost:8080
+npx klyro benchmark --help
 ```
 
-`PORT` is honoured when `IRIDIUM_SERVER__PORT` is not set, so most hosts work without extra setup.
+No configuration is needed. Settings are environment variables
+([docs/CONFIGURATION.md](docs/CONFIGURATION.md)); the secure defaults block private networks.
 
-| Path                | What it does                                                        |
-| ------------------- | ------------------------------------------------------------------- |
-| `/healthz`          | `{"status":"ok"}` for load balancers                                |
-| `server.wispPath`   | Wisp WebSocket endpoint (plain HTTP gets 426)                       |
-| `server.basePath/*` | Static files from `server.staticDir`, with `index.html` for folders |
+Endpoints: `/` (the interface), `/health`, `/ready`, `/metrics` (Prometheus), `/wisp/` (compatibility
+mode), `/k/<session>/...` (proxied pages).
 
-## Hosting
+## Deploy
 
-The Wisp endpoint is a long-lived WebSocket that opens raw TCP connections, so it needs a
-host that runs a persistent Node process (a VM, a container platform, Fly.io, Railway, Render).
-It cannot run on Vercel's serverless functions; host the static site there if you like and point
-`transport.url` at this server.
+Oracle Cloud (Ubuntu 24.04, ARM64 or AMD64) behind Caddy: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Also a home-machine script and a Dockerfile.
 
-```sh
-docker build -t iridium-proxy .
-docker run -p 8080:8080 -e IRIDIUM_SECURITY__BLOCK_PRIVATE_ADDRESSES=true iridium-proxy
-```
+## What is in the box
 
-Put it behind TLS (a platform router or reverse proxy) so clients can use `wss://`.
+| Path                   | What                                                                                                       |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `src/klyro/`           | The native proxy: pool, DNS cache, policy, sessions, cache, rewriters, metrics, benchmark                  |
+| `src/wisp.ts`          | Wisp v1 relay with flow control and a bandwidth cap                                                        |
+| `ui/`                  | The interface (MIT)                                                                                        |
+| `web/`                 | Scramjet-based compatibility client (**AGPL-3.0**; see [NOTICE](NOTICE))                                   |
+| `bench/`, `web/bench/` | Benchmark suite and browser benchmark                                                                      |
+| `docs/`                | Architecture, performance, security, deployment, configuration, compatibility, troubleshooting, benchmarks |
 
-## Performance
+## Documentation
 
-`npm run bench` pushes 256 MB through the Wisp endpoint to a local echo server and times 5000
-small round trips. On a shared cloud VM (loopback, Node client) it measured about 120 MB/s each
-way and a median of 0.03 ms added latency. That is well above a home connection, so in practice
-the limit is the server's own network link and the distance to it. Data is copied once per
-direction, sockets use `TCP_NODELAY`, and a slow client pauses reads from the target instead of
-buffering without limit.
-
-## Bandwidth cap
-
-To avoid surprise bills on a host that charges for outbound data, set a monthly cap:
-
-```sh
-IRIDIUM_MONTHLY_CAP=900MB IRIDIUM_USAGE_FILE=/var/lib/iridium-proxy/usage.json npm start
-```
-
-The proxy counts bytes in both directions per UTC month and saves the count to the usage file,
-so a restart does not reset it. At the cap it closes open streams and refuses new ones (Wisp
-close reason `0x49`) until the month rolls over. `/healthz` shows the current usage and cap.
-
-The cap counts only what this server relays. It does not include other traffic on the same
-machine, or charges for things like a static IP address, so check your provider's pricing as well.
-
-## Deploying on a VM
-
-`deploy/setup-vm.sh` installs everything on a fresh Ubuntu VM (for example an Oracle Cloud Always
-Free instance): Node, Caddy for automatic HTTPS, the proxy and browser client, and a systemd
-service that restarts on its own. Without a domain it uses `<your-ip>.nip.io`.
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/Iridium-Group/iridium-proxy/main/deploy/setup-vm.sh | sudo CAP=5TB bash
-```
-
-Also open ports 80 and 443 in the provider's own firewall (on Oracle: the VCN security list).
-
-Most clouds also let you paste `deploy/cloud-init.yaml` into the VM's "Custom data" / "User data" box, which runs the same install on first boot, with nothing to type over SSH.
-
-## Running at home with a free public link
-
-No account, card or VM needed. Install [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/),
-then from the repo root:
-
-```sh
-./deploy/home/run.sh
-```
-
-It builds everything, starts the proxy with a bandwidth cap (`IRIDIUM_MONTHLY_CAP`, default 50GB),
-and opens a Cloudflare quick tunnel that prints a public `https://....trycloudflare.com` link.
-Traffic leaves from your home connection. The machine must stay on, and the link changes each
-time you start it. Quick tunnels are for light use; I have not tested WebSocket behaviour through
-one at length, so treat it as unverified until you try it.
-
-## Security notes
-
-- Private and loopback targets are blocked by default. Keep `blockPrivateAddresses` on for any
-  server reachable from the internet, otherwise it is a way into your internal network.
-- Ports 25, 465 and 587 are blocked by default; set `allowedPorts` for a strict allow-list.
-- Each client may hold 256 streams; further `CONNECT`s get close reason `0x49` (throttled).
-- There is no authentication or rate limiting per client. Add that in front if you need it.
-
-## Library
-
-```ts
-import { loadConfig } from '@iridium-group/config';
-import { createProxyServer } from '@iridium-group/proxy';
-
-const proxy = createProxyServer(await loadConfig());
-await proxy.listen();
-```
+[Architecture](docs/ARCHITECTURE.md) ·
+[Performance](docs/PERFORMANCE.md) ·
+[Benchmarks](docs/BENCHMARKS.md) ·
+[Security](docs/SECURITY.md) ·
+[Deployment](docs/DEPLOYMENT.md) ·
+[Configuration](docs/CONFIGURATION.md) ·
+[Compatibility](docs/COMPATIBILITY.md) ·
+[Troubleshooting](docs/TROUBLESHOOTING.md) ·
+[Third-party software](THIRD_PARTY.md)
 
 ## Development
 
 ```sh
 npm ci
 npm run format:check && npm run typecheck && npm run build && npm test
+npm run build:web && npm --prefix web test      # real Chromium
+npm run bench:suite                              # benchmarks
 ```
 
-## License
+## Security in one paragraph
 
-MIT
+Destinations are validated before any outbound connection (scheme, host name, port, and every DNS
+answer must be public), and again when a socket is opened, so DNS rebinding cannot slip through.
+Redirects are never followed by the server. Limits cover sessions, sockets, body sizes, request rate
+and monthly bandwidth. Credentials are not handled. One known weakness: every proxied site shares one
+browser origin, so do not sign in to anything through Klyro. Details: [docs/SECURITY.md](docs/SECURITY.md).
+
+## Licence
+
+MIT, except `web/`, which is AGPL-3.0-only. See [NOTICE](NOTICE) and [THIRD_PARTY.md](THIRD_PARTY.md).

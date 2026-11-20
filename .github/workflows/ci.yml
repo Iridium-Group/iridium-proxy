@@ -9,7 +9,21 @@ permissions:
   contents: read
 
 jobs:
+  check:
+    name: lint and typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run typecheck
+
   test:
+    name: tests (node ${{ matrix.node }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -22,28 +36,27 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npm run format:check
-      - run: npm run typecheck
+      - name: Unit tests
+        run: node --test --test-timeout=30000 test/klyro-transform.test.ts test/klyro-config.test.ts test/usage.test.ts
+      - name: Integration tests
+        run: |
+          node --test --test-timeout=60000 --test-skip-pattern='klyro: security' test/klyro.test.ts test/proxy.test.ts
+      - name: Security tests
+        run: |
+          node --test --test-timeout=60000 --test-name-pattern='klyro: security' test/klyro.test.ts
       - run: npm run build
-      - run: npm test
-      - run: npm run build:web
-        env:
-          INSPECTOR_BUILT: '1'
-      - name: Check the package includes the build and the binary
+      - name: Check the package includes what it should
         run: |
           npm pack --dry-run --json > pack.json
           node -e '
             const files = require("./pack.json")[0].files.map((f) => f.path);
-            for (const want of ["dist/index.js", "dist/server.js", "bin/iridium-proxy.js"]) {
+            for (const want of ["dist/index.js", "dist/cli.js", "dist/klyro/klyro.js", "dist/klyro/transform-worker.js", "bin/klyro.js", "ui/index.html"]) {
               if (!files.includes(want)) { console.error("missing from package: " + want); process.exit(1); }
             }
           '
-  docker:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t iridium-proxy .
+
   browser:
+    name: browser tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,3 +68,24 @@ jobs:
       - run: npm run build:web
       - run: npx --prefix web playwright install --with-deps chromium
       - run: npm --prefix web test
+
+  benchmark-smoke:
+    name: benchmark smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # A short run that only checks every workload completes with no failed requests.
+      # It makes no performance claim: CI machines are too noisy for that.
+      - run: node bench/suite.ts --quick
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t klyro .

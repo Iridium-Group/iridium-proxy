@@ -11,3 +11,4 @@ coverage/
 /web/public/THIRD_PARTY_LICENSES.txt
 /web/public/LICENSE.txt
 .iridium-usage.json
+bench/results/quick.json

@@ -123,6 +123,30 @@ export async function startOrigin(
           if (!res.write(chunk)) await new Promise((r) => res.once('drain', r));
         return void res.end();
       }
+      case '/json':
+        return send(200, { 'content-type': 'application/json' }, '{"ok":true}');
+      case '/app.html':
+        return send(
+          200,
+          { 'content-type': 'text/html; charset=utf-8' },
+          `<!doctype html><html><head><title>app</title></head><body><h1 id="hi">app</h1><a id="next" href="/static.html">next</a><pre id="out">pending</pre><script>
+(async () => {
+  const out = {};
+  out.fetchRoot = (await (await fetch('/json')).json()).ok;
+  out.fetchRelative = (await (await fetch('json')).json()).ok;
+  out.fetchAbsolute = (await (await fetch(location.href.replace(/^.*\\/k\\/[^/]+\\/(https?)\\/([^/]+)\\/.*$/, '$1://$2') + '/json')).json()).ok;
+  out.xhr = await new Promise((res) => { const q = new XMLHttpRequest(); q.open('GET', '/json'); q.onload = () => res(JSON.parse(q.responseText).ok); q.onerror = () => res('error'); q.send(); });
+  const wsPort = new URLSearchParams(location.search).get('ws');
+  out.websocket = await new Promise((res) => {
+    const ws = new WebSocket('ws://127.0.0.1:' + wsPort + '/ws-echo');
+    ws.onmessage = (e) => { if (!String(e.data).startsWith('cookie:')) { res(e.data); ws.close(); } };
+    ws.onopen = () => ws.send('hello-ws');
+    ws.onerror = () => res('error');
+  });
+  document.getElementById('out').textContent = JSON.stringify(out);
+})();
+</script></body></html>`,
+        );
       case '/static.html':
         return send(200, { 'content-type': 'text/html; charset=utf-8' }, html);
       case '/style.css':

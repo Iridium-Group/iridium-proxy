@@ -8,6 +8,7 @@ import { WebSocket } from 'ws';
 import {
   createLogger,
   createProxyServer,
+  UsageMeter,
   type KlyroConfig,
   type ProxyServer,
 } from '../src/index.ts';
@@ -500,6 +501,90 @@ describe('klyro: limits and lifecycle', () => {
       assert.equal((await fetch(c.path('/static.html'))).status, 410, 'idle session expired');
     } finally {
       await h.proxy.close();
+      await origin.close();
+    }
+  });
+});
+
+describe('klyro: monthly bandwidth cap', () => {
+  it('cuts a download at the cap, then refuses new requests with a clear 503', async () => {
+    const origin = await startOrigin();
+    const usage = new UsageMeter({ capBytes: 200_000 });
+    const config = applyDefaults({
+      server: { host: '127.0.0.1', staticDir: '/nonexistent' },
+      security: { blockPrivateAddresses: false },
+    });
+    const proxy = createProxyServer(config, {
+      logger,
+      usage,
+      klyro: { ratePerMinute: 0 },
+      lookup: async () => [{ address: '127.0.0.1', family: 4 as const }],
+    });
+    const { port } = await proxy.listen(0);
+    const base = `http://127.0.0.1:${port}`;
+    try {
+      const go = await fetch(
+        `${base}/klyro/go?u=${encodeURIComponent(`http://origin.test:${origin.port}/`)}`,
+        { redirect: 'manual' },
+      );
+      const sid = go.headers.get('location')!.split('/')[2];
+      const path = (p: string) => `${base}/k/${sid}/http/origin.test:${origin.port}${p}`;
+      let received = 0;
+      try {
+        const res = await fetch(path('/big')); // 8 MB
+        for await (const c of res.body!) received += (c as Uint8Array).length;
+      } catch {
+        // The stream is cut when the cap is reached.
+      }
+      assert.ok(received < 8 * 1024 * 1024, `received ${received} of 8 MB`);
+      assert.ok(usage.exceeded);
+      const next = await fetch(path('/static.html'));
+      assert.equal(next.status, 503);
+      assert.match(await next.text(), /bandwidth limit/);
+      const another = await fetch(
+        `${base}/klyro/go?u=${encodeURIComponent('http://example.com/')}`,
+        { redirect: 'manual' },
+      );
+      assert.equal(another.status, 503);
+      const health = (await (await fetch(`${base}/healthz`)).json()) as {
+        usage: { exceeded: boolean };
+      };
+      assert.equal(health.usage.exceeded, true);
+    } finally {
+      await proxy.close();
+      await origin.close();
+    }
+  });
+
+  it('counts cached and transformed responses too', async () => {
+    const origin = await startOrigin();
+    const usage = new UsageMeter({ capBytes: 10_000_000 });
+    const config = applyDefaults({
+      server: { host: '127.0.0.1', staticDir: '/nonexistent' },
+      security: { blockPrivateAddresses: false },
+    });
+    const proxy = createProxyServer(config, {
+      logger,
+      usage,
+      klyro: { ratePerMinute: 0 },
+      lookup: async () => [{ address: '127.0.0.1', family: 4 as const }],
+    });
+    const { port } = await proxy.listen(0);
+    try {
+      const go = await fetch(
+        `http://127.0.0.1:${port}/klyro/go?u=${encodeURIComponent(`http://origin.test:${origin.port}/`)}`,
+        { redirect: 'manual' },
+      );
+      const sid = go.headers.get('location')!.split('/')[2];
+      const url = `http://127.0.0.1:${port}/k/${sid}/http/origin.test:${origin.port}`;
+      await (await fetch(`${url}/static.html`)).text(); // transform
+      const afterTransform = usage.snapshot().bytes;
+      assert.ok(afterTransform > 100);
+      await (await fetch(`${url}/cacheable`)).text(); // fast, then cached
+      await (await fetch(`${url}/cacheable`)).text(); // cache hit
+      assert.ok(usage.snapshot().bytes >= afterTransform + 2 * 'cached body'.length);
+    } finally {
+      await proxy.close();
       await origin.close();
     }
   });
