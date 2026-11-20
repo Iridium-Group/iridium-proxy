@@ -16,6 +16,8 @@ import { WebSocketServer } from 'ws';
 
 export interface Origin {
   port: number;
+  /** Port of the WebSocket echo server (path /ws-echo). */
+  wsPort: number;
   server: Server;
   /** Requests received per path. */
   hits: Map<string, number>;
@@ -264,14 +266,20 @@ export async function startOrigin(
   };
 
   const server = options.tls ? createHttps(options.tls, handler) : createHttp(handler);
-  const wss = new WebSocketServer({ server, path: '/ws-echo' });
+  // WebSocket echo lives on its own port. A Node server with an 'upgrade' listener takes over any
+  // connection that sends an Upgrade header (libcurl sends h2c), which would break keep-alive for
+  // the plain HTTP routes above.
+  const wsServer = createHttp();
+  const wss = new WebSocketServer({ server: wsServer, path: '/ws-echo' });
   wss.on('connection', (ws, req) => {
     ws.send(`cookie:${req.headers.cookie ?? ''}`);
     ws.on('message', (d, isBinary) => ws.send(d, { binary: isBinary }));
   });
+  await new Promise<void>((r) => wsServer.listen(0, '127.0.0.1', r));
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   return {
     port: (server.address() as AddressInfo).port,
+    wsPort: (wsServer.address() as AddressInfo).port,
     server,
     hits,
     lastHeaders,
@@ -284,6 +292,8 @@ export async function startOrigin(
     close: () =>
       new Promise((resolve) => {
         wss.close();
+        wsServer.close();
+        wsServer.closeAllConnections();
         server.close(() => resolve());
         server.closeAllConnections();
       }),

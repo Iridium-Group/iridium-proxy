@@ -512,7 +512,9 @@ describe('klyro: WebSocket', () => {
     try {
       const s = await h.session(`http://origin.test:${origin.port}/`);
       await fetch(s.path('/cookie-set'));
-      const ws = new WebSocket(s.ws('/ws-echo'));
+      const ws = new WebSocket(
+        `ws://127.0.0.1:${h.port}/k/${s.sid}/ws/origin.test:${origin.wsPort}/ws-echo`,
+      );
       const got: string[] = [];
       ws.on('message', (d) => got.push(d.toString()));
       await new Promise((r) => ws.once('open', r));

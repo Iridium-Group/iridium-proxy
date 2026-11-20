@@ -186,7 +186,7 @@ async function main() {
       name: 'direct',
       base: `http://127.0.0.1:${origin.port}`,
       open: async () => (p) => `http://127.0.0.1:${origin.port}${p}`,
-      wsUrl: async (p) => `ws://127.0.0.1:${origin.port}${p}`,
+      wsUrl: async (p) => `ws://127.0.0.1:${origin.wsPort}${p}`,
     },
     ...(
       [
@@ -204,7 +204,7 @@ async function main() {
       },
       wsUrl: async (p) => {
         const sid = await session(port, origin.port);
-        return `ws://127.0.0.1:${port}/k/${sid}/ws/127.0.0.1:${origin.port}${p}`;
+        return `ws://127.0.0.1:${port}/k/${sid}/ws/127.0.0.1:${origin.wsPort}${p}`;
       },
     })),
   ];
