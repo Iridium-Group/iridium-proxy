@@ -6,6 +6,7 @@
 # Optional settings, passed as environment variables:
 #   DOMAIN=proxy.example.com   Host name for HTTPS. Default: <public-ip>.nip.io (works with no domain).
 #   CAP=5TB                    Monthly bandwidth cap. Check your provider's free allowance first.
+#   MAX_SESSIONS, CACHE_SIZE, MAX_CONNECTIONS   Klyro limits (defaults suit a 1 GB machine).
 #   BRANCH=main                Git branch to install.
 set -euo pipefail
 
@@ -78,8 +79,12 @@ Environment=IRIDIUM_SERVER__HOST=127.0.0.1
 Environment=IRIDIUM_SECURITY__BLOCK_PRIVATE_ADDRESSES=true
 Environment=IRIDIUM_LOGGING__LEVEL=info
 Environment=IRIDIUM_MONTHLY_CAP=$CAP
+Environment=MAX_SESSIONS=${MAX_SESSIONS:-200}
+Environment=CACHE_SIZE=${CACHE_SIZE:-32MB}
+Environment=MAX_CONNECTIONS=${MAX_CONNECTIONS:-64}
 Environment=IRIDIUM_USAGE_FILE=$DATA/usage.json
 Restart=always
+LimitNOFILE=65536
 RestartSec=3
 NoNewPrivileges=true
 ProtectSystem=strict
@@ -98,7 +103,11 @@ if [ -z "${DOMAIN:-}" ]; then
 fi
 cat > /etc/caddy/Caddyfile <<CADDY
 $DOMAIN {
-	reverse_proxy 127.0.0.1:8080
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8080 {
+		# Do not buffer responses: media and downloads must stream straight through.
+		flush_interval -1
+	}
 }
 CADDY
 

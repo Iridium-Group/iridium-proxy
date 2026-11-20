@@ -38,8 +38,10 @@ function normalizePath(path: string): string {
 /** Build the server described by a resolved config. Nothing listens until `listen()`. */
 export function createProxyServer(config: IridiumConfig, options: ProxyOptions = {}): ProxyServer {
   const logger = options.logger ?? createLogger(config.logging.level, config.logging.format);
+  const usage = options.usage ?? new UsageMeter();
   const klyro = createKlyro({
     logger,
+    usage,
     config: { ...klyroConfigFromEnv(), ...options.klyro },
     security: {
       blockPrivateAddresses: config.security.blockPrivateAddresses,
@@ -51,7 +53,6 @@ export function createProxyServer(config: IridiumConfig, options: ProxyOptions =
   });
   // Wisp shares Klyro's address policy, so both get the same validation and cached DNS.
   const policy = klyro.address;
-  const usage = options.usage ?? new UsageMeter();
   const wispPath = normalizePath(config.server.wispPath);
   const basePath = config.server.basePath;
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });

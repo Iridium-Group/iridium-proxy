@@ -1,7 +1,7 @@
 {
   "name": "@iridium-group/proxy",
-  "version": "0.1.0",
-  "description": "Node server for Iridium: serves static files and a Wisp v1 WebSocket endpoint that enforces the configured address and port policy.",
+  "version": "0.2.0",
+  "description": "Klyro: Iridium Group's high-performance web-access and proxy platform. A native HTTP proxy with a fast path, plus a Wisp relay and a Scramjet compatibility client.",
   "license": "MIT",
   "private": false,
   "type": "module",
@@ -15,10 +15,12 @@
     "url": "https://github.com/Iridium-Group/iridium-proxy/issues"
   },
   "keywords": [
+    "http-proxy",
     "iridium",
-    "wisp",
+    "klyro",
     "proxy",
-    "websocket"
+    "websocket",
+    "wisp"
   ],
   "engines": {
     "node": ">=22.18"

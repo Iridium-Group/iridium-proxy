@@ -27,6 +27,7 @@ import { RateLimiter } from './ratelimit.ts';
 import { SessionStore, type Session } from './session.ts';
 import { SHIM_SOURCE } from './shim.ts';
 import type { Logger } from '../logger.ts';
+import type { UsageMeter } from '../usage.ts';
 
 export interface KlyroOptions {
   config?: Partial<KlyroConfig>;
@@ -37,6 +38,8 @@ export interface KlyroOptions {
     blockedPorts: readonly number[];
     allowedPorts?: readonly number[];
   };
+  /** Counts bytes sent to clients. Once its monthly cap is reached, requests are refused. */
+  usage?: UsageMeter;
   /** Extra trusted CA certificates for origin TLS (tests and private origins). */
   ca?: string | Buffer;
   /** Replace DNS, for tests. */
@@ -151,7 +154,7 @@ export interface Klyro {
 
 export function createKlyro(options: KlyroOptions): Klyro {
   const config: KlyroConfig = { ...DEFAULT_KLYRO_CONFIG, ...options.config };
-  const { logger } = options;
+  const { logger, usage } = options;
   const metrics = new Metrics();
 
   const observeDns = metrics.histogram(
@@ -507,6 +510,12 @@ export function createKlyro(options: KlyroOptions): Klyro {
     started: number,
   ): Promise<{ route: string; status: number }> {
     const method = req.method ?? 'GET';
+    if (usage?.exceeded)
+      throw new HttpFailure(
+        503,
+        'bandwidth_cap',
+        'This server has reached its monthly bandwidth limit',
+      );
     if (!METHODS.has(method)) throw new HttpFailure(405, 'method', `${method} is not supported`);
     const decoded = decodeProxyPath(req.url ?? '');
     if (!decoded || decoded.websocket)
@@ -551,6 +560,7 @@ export function createKlyro(options: KlyroOptions): Klyro {
         });
         res.end(entry.body);
         countBytesOut(entry.body.length);
+        usage?.add(entry.body.length);
         return { route: 'cache', status: entry.status };
       }
       if (entry && (entry.etag || entry.lastModified)) {
@@ -595,6 +605,7 @@ export function createKlyro(options: KlyroOptions): Klyro {
       });
       res.end(stale.body);
       countBytesOut(stale.body.length);
+      usage?.add(stale.body.length);
       return { route: 'cache', status: stale.status };
     }
     if (stale) cache.recordMiss();
@@ -643,6 +654,7 @@ export function createKlyro(options: KlyroOptions): Klyro {
       res.writeHead(status, base);
       res.end(method === 'HEAD' ? undefined : out);
       countBytesOut(out.length);
+      usage?.add(out.length);
       session.bytesIn += raw.length;
       session.bytesOut += out.length;
       if (cacheInfo && status === 200) {
@@ -677,6 +689,11 @@ export function createKlyro(options: KlyroOptions): Klyro {
         total += chunk.length;
         if (total > config.maxResponseBytes)
           return cb(new HttpFailure(502, 'response_too_large', 'The response is too large'));
+        // Count toward the monthly cap; at the cap the stream is cut off here.
+        if (usage?.add(chunk.length))
+          return cb(
+            new HttpFailure(503, 'bandwidth_cap', 'The monthly bandwidth limit was reached'),
+          );
         if (tee) {
           teeBytes += chunk.length;
           if (teeBytes <= cache.maxItemBytes) tee.push(chunk);
@@ -763,6 +780,12 @@ export function createKlyro(options: KlyroOptions): Klyro {
         return true;
       }
       try {
+        if (usage?.exceeded)
+          throw new HttpFailure(
+            503,
+            'bandwidth_cap',
+            'This server has reached its monthly bandwidth limit',
+          );
         const raw = new URL(url, 'http://x').searchParams.get('u')?.trim() ?? '';
         if (!raw) throw new HttpFailure(400, 'bad_url', 'Enter a web address');
         let target: URL;
