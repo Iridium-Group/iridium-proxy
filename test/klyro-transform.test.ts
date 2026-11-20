@@ -171,3 +171,55 @@ describe('siteOf', () => {
     );
   });
 });
+
+describe('transformer (worker threads)', () => {
+  const big = `<!doctype html><html><head><title>x</title></head><body>${Array.from({ length: 4000 }, (_, i) => `<a href="/p/${i}">p${i}</a><img src="/i/${i}.png">`).join('')}</body></html>`;
+  const sidA = 'AAAAAAAAAAAAAAAAAAAAAA';
+
+  it('gives identical output inline and on a worker, and offloads only large bodies', async () => {
+    const { Transformer } = await import('../src/klyro/transformer.ts');
+    const inline = new Transformer({ workers: 0, offloadBytes: 1000 });
+    const pooled = new Transformer({ workers: 2, offloadBytes: 1000 });
+    try {
+      const bytes = () => Buffer.from(big);
+      const a = Buffer.from(
+        await inline.run('html', bytes(), 'utf-8', 'https://example.com/x.html', sidA),
+      );
+      const b = Buffer.from(
+        await pooled.run('html', bytes(), 'utf-8', 'https://example.com/x.html', sidA),
+      );
+      assert.ok(a.equals(b), 'worker output must equal inline output');
+      assert.ok(a.toString().includes(`/k/${sidA}/https/example.com/p/10`));
+      assert.equal(pooled.offloaded, 1);
+      assert.equal(inline.inline, 1);
+      await pooled.run(
+        'html',
+        Buffer.from('<a href="/x">x</a>'),
+        'utf-8',
+        'https://example.com/',
+        sidA,
+      );
+      assert.equal(pooled.offloaded, 1, 'a tiny body stays inline');
+      assert.equal(pooled.inline, 1);
+      // Many at once, spread over the workers.
+      const many = await Promise.all(
+        Array.from({ length: 8 }, () =>
+          pooled.run('html', bytes(), 'utf-8', 'https://example.com/x.html', sidA),
+        ),
+      );
+      assert.ok(many.every((m) => Buffer.from(m).equals(a)));
+    } finally {
+      await pooled.close();
+      await inline.close();
+    }
+  });
+
+  it('decodes other charsets and always outputs UTF-8', async () => {
+    const { transformBytes } = await import('../src/klyro/transform.ts');
+    const latin1 = Buffer.from('<a href="/x">caf\xe9</a>', 'latin1');
+    const out = Buffer.from(
+      transformBytes('html', latin1, 'iso-8859-1', 'https://example.com/', sidA),
+    ).toString('utf-8');
+    assert.ok(out.includes('café'));
+  });
+});

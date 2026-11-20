@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os';
 import { parseSize } from '../usage.ts';
 
 /** Klyro runtime limits. Every field can be set with the environment variable shown. */
@@ -28,6 +29,10 @@ export interface KlyroConfig {
   dnsTtlMs: number;
   /** RATE_LIMIT: requests per minute per client address. 0 turns it off. */
   ratePerMinute: number;
+  /** TRANSFORM_WORKERS: worker threads for rewriting large pages. 0 = inline. Default: up to 2, never more than cores - 1. */
+  transformWorkers: number;
+  /** TRANSFORM_OFFLOAD_MIN: bodies at least this big are rewritten on a worker. */
+  transformOffloadBytes: number;
   /** KLYRO_POOL=0 disables upstream connection reuse (for benchmarking only). */
   pool: boolean;
   /** KLYRO_FORCE_TRANSFORM=1 sends everything through the slow path (for benchmarking only). */
@@ -48,6 +53,8 @@ export const DEFAULT_KLYRO_CONFIG: KlyroConfig = {
   idleTimeoutMs: 15_000,
   dnsTtlMs: 60_000,
   ratePerMinute: 3000,
+  transformWorkers: Math.min(2, Math.max(0, availableParallelism() - 1)),
+  transformOffloadBytes: 256 * 1024,
   pool: true,
   forceTransform: false,
 };
@@ -89,6 +96,8 @@ export function klyroConfigFromEnv(env: EnvSource = process.env): KlyroConfig {
     idleTimeoutMs: num(env, 'IDLE_TIMEOUT', d.idleTimeoutMs),
     dnsTtlMs: num(env, 'DNS_TTL', d.dnsTtlMs, 1000),
     ratePerMinute: num(env, 'RATE_LIMIT', d.ratePerMinute),
+    transformWorkers: num(env, 'TRANSFORM_WORKERS', d.transformWorkers),
+    transformOffloadBytes: size(env, 'TRANSFORM_OFFLOAD_MIN', d.transformOffloadBytes),
     pool: env.KLYRO_POOL !== '0',
     forceTransform: env.KLYRO_FORCE_TRANSFORM === '1',
   };
