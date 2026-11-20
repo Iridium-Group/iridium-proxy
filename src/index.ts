@@ -8,3 +8,7 @@ export type { Logger } from './logger.ts';
 export { main } from './main.ts';
 export { UsageMeter, parseSize } from './usage.ts';
 export type { UsageSnapshot, UsageMeterOptions } from './usage.ts';
+export { createKlyro } from './klyro/klyro.ts';
+export type { Klyro, KlyroOptions } from './klyro/klyro.ts';
+export { klyroConfigFromEnv, DEFAULT_KLYRO_CONFIG } from './klyro/config.ts';
+export type { KlyroConfig } from './klyro/config.ts';
