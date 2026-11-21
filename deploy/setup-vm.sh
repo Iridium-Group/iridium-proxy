@@ -6,6 +6,7 @@
 # Optional settings, passed as environment variables:
 #   DOMAIN=proxy.example.com   Host name for HTTPS. Default: <public-ip>.nip.io (works with no domain).
 #   CAP=5TB                    Monthly bandwidth cap. Check your provider's free allowance first.
+#   PORT=8080                  Port Klyro listens on (on 127.0.0.1). Change it if something else uses 8080.
 #   MAX_SESSIONS, CACHE_SIZE, MAX_CONNECTIONS   Klyro limits (defaults suit a 1 GB machine).
 #   BRANCH=main                Git branch to install.
 set -euo pipefail
@@ -15,6 +16,11 @@ set -euo pipefail
 REPO=https://github.com/Iridium-Group/iridium-proxy
 BRANCH=${BRANCH:-main}
 CAP=${CAP:-5TB}
+PORT=${PORT:-8080}
+case "$PORT" in
+  ''|*[!0-9]*) echo "PORT must be a number, got '$PORT'." >&2; exit 1 ;;
+esac
+if [ "$PORT" -lt 1024 ] || [ "$PORT" -gt 65535 ]; then echo "PORT must be between 1024 and 65535." >&2; exit 1; fi
 APP=/opt/iridium-proxy
 DATA=/var/lib/iridium-proxy
 
@@ -76,7 +82,7 @@ Wants=network-online.target
 User=iridium
 WorkingDirectory=$APP
 ExecStart=/usr/bin/node $APP/bin/iridium-proxy.js
-Environment=PORT=8080
+Environment=PORT=$PORT
 Environment=IRIDIUM_SERVER__HOST=127.0.0.1
 Environment=IRIDIUM_SECURITY__BLOCK_PRIVATE_ADDRESSES=true
 Environment=IRIDIUM_LOGGING__LEVEL=info
@@ -103,10 +109,14 @@ if [ -z "${DOMAIN:-}" ]; then
   IP=$(curl -fsS https://api.ipify.org)
   DOMAIN="${IP//./-}.nip.io"
 fi
+# Keep a copy of any Caddy config that is already there; this script replaces it.
+if [ -s /etc/caddy/Caddyfile ] && ! grep -q 'flush_interval -1' /etc/caddy/Caddyfile; then
+  cp /etc/caddy/Caddyfile "/etc/caddy/Caddyfile.bak.$(date +%Y%m%d%H%M%S)"
+fi
 cat > /etc/caddy/Caddyfile <<CADDY
 $DOMAIN {
 	encode zstd gzip
-	reverse_proxy 127.0.0.1:8080 {
+	reverse_proxy 127.0.0.1:$PORT {
 		# Do not buffer responses: media and downloads must stream straight through.
 		flush_interval -1
 	}
@@ -122,14 +132,14 @@ fi
 
 systemctl daemon-reload
 # Stop our own service first, then make sure nothing else is holding the port. An old copy of the
-# proxy (or anything else) on 8080 makes the new service crash-loop while the old one keeps answering.
+# proxy (or anything else) on the port makes the new service crash-loop while the old one keeps answering.
 systemctl stop iridium-proxy 2>/dev/null || true
 if command -v ss >/dev/null; then
-  holder=$(ss -H -tlnp 'sport = :8080' 2>/dev/null || true)
+  holder=$(ss -H -tlnp "sport = :$PORT" 2>/dev/null || true)
   if [ -n "$holder" ]; then
-    echo "Port 8080 is already in use by something that is not this service:" >&2
+    echo "Port $PORT is already in use by something that is not this service:" >&2
     echo "$holder" >&2
-    echo "Stop that process (see the pid above, or: sudo ss -tlnp | grep 8080), then run this again." >&2
+    echo "Either stop that process, or run this again with another port, for example: sudo PORT=8090 bash setup-vm.sh" >&2
     exit 1
   fi
 fi
@@ -142,7 +152,7 @@ systemctl restart caddy
 echo "Waiting for the service to answer..."
 ready=""
 for _ in $(seq 1 30); do
-  if curl -fsS http://127.0.0.1:8080/ready >/dev/null 2>&1; then ready=1; break; fi
+  if curl -fsS http://127.0.0.1:$PORT/ready >/dev/null 2>&1; then ready=1; break; fi
   sleep 1
 done
 if [ -z "$ready" ]; then
@@ -150,7 +160,7 @@ if [ -z "$ready" ]; then
   journalctl -u iridium-proxy -n 25 --no-pager >&2
   exit 1
 fi
-echo "Service is ready: $(curl -s http://127.0.0.1:8080/health)"
+echo "Service is ready: $(curl -s http://127.0.0.1:$PORT/health)"
 
 echo
 echo "Done. Open https://$DOMAIN/ (the first HTTPS certificate can take a minute)."

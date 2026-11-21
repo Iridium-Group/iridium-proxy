@@ -46,6 +46,19 @@ On small machines the script adds a 2 GB swap file so the build does not run out
 conservative limits (`MAX_SESSIONS=200`, `CACHE_SIZE=32MB`, `MAX_CONNECTIONS=64`; override by setting
 those variables when you run it).
 
+### If something else already uses port 8080
+
+The installer stops with a message naming the process instead of fighting it. Either stop that
+process, or install Klyro on another port and leave the other service alone:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Iridium-Group/iridium-proxy/main/deploy/setup-vm.sh | sudo PORT=8090 CAP=5TB bash
+```
+
+`PORT` is the port Klyro listens on locally (always on 127.0.0.1); Caddy forwards to it. The
+installer also keeps a dated copy of any existing Caddy config (`/etc/caddy/Caddyfile.bak.*`) before
+replacing it.
+
 ## 3. Check
 
 ```sh
