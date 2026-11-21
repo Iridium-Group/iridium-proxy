@@ -52,8 +52,10 @@ id iridium >/dev/null 2>&1 || useradd --system --home "$APP" --shell /usr/sbin/n
 mkdir -p "$DATA"
 chown iridium:iridium "$DATA"
 if [ -d "$APP/.git" ]; then
-  git -C "$APP" fetch --depth 1 origin "$BRANCH"
-  git -C "$APP" reset --hard FETCH_HEAD
+  # The folder belongs to the service user, so root must be told it is a safe repository
+  # (otherwise git stops with "detected dubious ownership" on every update).
+  git -c safe.directory="$APP" -C "$APP" fetch --depth 1 origin "$BRANCH"
+  git -c safe.directory="$APP" -C "$APP" reset --hard FETCH_HEAD
 else
   rm -rf "$APP"
   git clone --depth 1 --branch "$BRANCH" "$REPO" "$APP"
