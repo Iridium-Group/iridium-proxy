@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- New interface: a proper logo (`ui/logo.svg` plus PNG icons), the Inter typeface, real toolbar icons, favorites as
+  tiles. The Recent list is gone (and any history it saved is deleted from the browser).
+- Tabs are saved and restored after a reload or restart (addresses and titles only, never sessions), the
+  visible tab loads first, and Ctrl/Cmd+Shift+T reopens a closed tab.
+
 - Preconnect and pre-warmed connection pool (`PRECONNECT`, `PREWARM_CONNECTIONS`, `WARM_*`), with caps,
   idle expiry and the same destination checks as a request.
 - Browser shell with tabs, address bar and navigation; IPv4-first DNS with failover and one retry;

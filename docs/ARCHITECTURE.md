@@ -69,6 +69,10 @@ real URL and title and keeps the address bar and tab labels in step, including f
 URL without reloading (it checks once a second). Shortcuts: Ctrl/Cmd+L, T and W. It never runs
 inside its own frame (an error page's "Back to Klyro" link targets the top window).
 
+Tabs are saved in the browser's local storage (addresses, titles, order and the active tab) and restored on
+the next visit; only the visible tab loads at first. Session identifiers are deliberately never saved, so a
+restored tab starts a fresh session. Favorites are stored the same way. There is no "recent" history.
+
 ## Components (src/klyro/)
 
 | File                                      | Job                                                                            |

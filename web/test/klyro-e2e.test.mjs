@@ -155,10 +155,113 @@ describe('klyro native mode in a browser', () => {
     await page.close();
   });
 
+  it('saves tabs and restores them after a reload, loading only the visible one at first', async () => {
+    const page = await browser.newPage();
+    await page.goto(`${base}/`);
+    const one = `http://127.0.0.1:${origin.port}/static.html`;
+    const two = `http://127.0.0.1:${origin.port}/app.html?ws=1`;
+    await page.fill('#url', one);
+    await page.press('#url', 'Enter');
+    await page.frameLocator('iframe.view').locator('h1').waitFor({ timeout: 20_000 });
+    await page.click('#newtab');
+    await page.fill('#url', two);
+    await page.press('#url', 'Enter');
+    await page.frameLocator('iframe.view >> nth=1').locator('#hi').waitFor({ timeout: 20_000 });
+    await page.waitForFunction(
+      (u) =>
+        (JSON.parse(localStorage.getItem('klyro.tabs') ?? '{}').tabs ?? []).some(
+          (t) => t.url === u,
+        ),
+      two,
+      { timeout: 5000 },
+    );
+
+    await page.reload();
+    assert.equal(await page.locator('.tab').count(), 2, 'both tabs came back');
+    await page.frameLocator('iframe.view').locator('#hi').waitFor({ timeout: 20_000 });
+    assert.equal(
+      await page.locator('iframe.view').count(),
+      1,
+      'only the visible tab is loaded at first',
+    );
+    assert.equal(await page.inputValue('#address'), two, 'the address bar shows the real address');
+    await page.locator('.tab').first().click();
+    await page.frameLocator('iframe.view >> nth=1').locator('h1').waitFor({ timeout: 20_000 });
+    assert.equal(
+      await page.locator('iframe.view').count(),
+      2,
+      'the other tab loads when it is opened',
+    );
+
+    const saved = await page.evaluate(() => localStorage.getItem('klyro.tabs'));
+    assert.ok(!saved.includes('/k/'), 'session paths are never saved');
+    await page.close();
+  });
+
+  it('reopens a closed tab with Ctrl+Shift+T', async () => {
+    const page = await browser.newPage();
+    await page.goto(`${base}/`);
+    const url = `http://127.0.0.1:${origin.port}/static.html`;
+    await page.fill('#url', url);
+    await page.press('#url', 'Enter');
+    await page.frameLocator('iframe.view').locator('h1').waitFor({ timeout: 20_000 });
+    await page.click('.tab[aria-selected=true] .x');
+    assert.equal(await page.locator('iframe.view').count(), 0);
+    await page.keyboard.press('Control+Shift+T');
+    await page.frameLocator('iframe.view').locator('h1').waitFor({ timeout: 20_000 });
+    assert.equal(await page.inputValue('#address'), url);
+    await page.close();
+  });
+
+  it('favorites: the star adds a tile, the tile opens it, and the star removes it', async () => {
+    const page = await browser.newPage();
+    await page.goto(`${base}/`);
+    const url = `http://127.0.0.1:${origin.port}/static.html`;
+    await page.fill('#url', url);
+    await page.press('#url', 'Enter');
+    await page.frameLocator('iframe.view').locator('h1').waitFor({ timeout: 20_000 });
+    await page.click('#star');
+    assert.match((await page.getAttribute('#star', 'class')) ?? '', /on/);
+    await page.click('#home');
+    assert.equal(await page.locator('#favorites .fav').count(), 1);
+    await page.locator('#favorites .fav').click();
+    await page.frameLocator('iframe.view').locator('h1').waitFor({ timeout: 20_000 });
+    await page.click('#star');
+    assert.equal((await page.getAttribute('#star', 'class')) ?? '', '');
+    await page.click('#home');
+    assert.equal(await page.locator('#favorites .fav').count(), 0);
+    await page.close();
+  });
+
+  it('has no Recent list, deletes any old recent history, and can clear everything it saved', async () => {
+    const page = await browser.newPage();
+    await page.addInitScript(() =>
+      localStorage.setItem('klyro.recent', JSON.stringify(['https://old.example/'])),
+    );
+    await page.goto(`${base}/`);
+    assert.equal(await page.getByText('Recent', { exact: true }).count(), 0);
+    assert.equal(
+      await page.evaluate(() => localStorage.getItem('klyro.recent')),
+      null,
+      'old recent history was deleted',
+    );
+    await page.fill('#url', `http://127.0.0.1:${origin.port}/static.html`);
+    await page.press('#url', 'Enter');
+    await page.frameLocator('iframe.view').locator('h1').waitFor({ timeout: 20_000 });
+    await page.click('#star');
+    await page.click('#clear');
+    const left = await page.evaluate(() => [
+      localStorage.getItem('klyro.favorites'),
+      localStorage.getItem('klyro.closed'),
+    ]);
+    assert.equal(left[0], '[]');
+    await page.close();
+  });
+
   it('shows the home page', async () => {
     const page = await browser.newPage();
     await page.goto(`${base}/`);
-    assert.equal(await page.textContent('h1'), 'KLYRO');
+    assert.equal(await page.textContent('h1'), 'Klyro');
     await page.close();
   });
 });

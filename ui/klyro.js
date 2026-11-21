@@ -11,7 +11,9 @@ const tabsEl = $('tabs');
 const views = $('views');
 const homeView = $('homeview');
 const address = $('address');
-const KEY = { recent: 'klyro.recent', fav: 'klyro.favorites', keep: 'klyro.keep' };
+const FAV = 'klyro.favorites';
+const TABS = 'klyro.tabs';
+const CLOSED = 'klyro.closed';
 
 const store = {
   get(k, fallback) {
@@ -28,7 +30,18 @@ const store = {
       /* storage may be blocked */
     }
   },
+  remove(k) {
+    try {
+      localStorage.removeItem(k);
+    } catch {
+      /* storage may be blocked */
+    }
+  },
 };
+
+// Earlier versions kept a list of recent addresses. It is gone, so delete what it saved.
+store.remove('klyro.recent');
+store.remove('klyro.keep');
 
 /** What was typed into an address: a URL as is, "example.com" as https, anything else a search. */
 function toAddress(text) {
@@ -52,7 +65,14 @@ const tabs = [];
 let active = null;
 
 function newTab(addr) {
-  const tab = { id: nextId++, title: 'New tab', url: '', frame: null, button: null };
+  const tab = {
+    id: nextId++,
+    title: 'New tab',
+    url: '',
+    pendingUrl: '',
+    frame: null,
+    button: null,
+  };
   tabs.push(tab);
   select(tab);
   if (addr) open(tab, addr);
@@ -62,20 +82,40 @@ function newTab(addr) {
 function closeTab(tab) {
   const i = tabs.indexOf(tab);
   if (i < 0) return;
+  const url = tab.url || tab.pendingUrl;
+  if (url) store.set(CLOSED, [{ url, title: tab.title }, ...store.get(CLOSED, [])].slice(0, 10));
   tab.frame?.remove();
   tabs.splice(i, 1);
-  if (tabs.length === 0) return void newTab();
-  if (active === tab) select(tabs[Math.min(i, tabs.length - 1)]);
+  if (tabs.length === 0) newTab();
+  else if (active === tab) select(tabs[Math.min(i, tabs.length - 1)]);
   else renderTabs();
+  saveTabs();
+}
+
+/** Bring back the most recently closed tab (Ctrl/Cmd+Shift+T). */
+function reopenClosed() {
+  const [last, ...rest] = store.get(CLOSED, []);
+  if (!last) return;
+  store.set(CLOSED, rest);
+  const tab = newTab();
+  tab.title = last.title || 'New tab';
+  open(tab, last.url);
 }
 
 function select(tab) {
   active = tab;
+  if (tab.pendingUrl && !tab.frame) {
+    // A tab restored from the last visit: load it now that it is being shown.
+    const url = tab.pendingUrl;
+    tab.pendingUrl = '';
+    return void open(tab, url);
+  }
   for (const t of tabs) if (t.frame) t.frame.hidden = t !== tab;
   homeView.hidden = !!tab.frame;
   renderTabs();
   syncBar();
   if (!tab.frame) $('url').focus();
+  saveTabs();
 }
 
 function renderTabs() {
@@ -115,7 +155,6 @@ function renderTabs() {
 
 // ---------- navigation ----------
 function open(tab, addr) {
-  remember(addr);
   if (!tab.frame) {
     const f = document.createElement('iframe');
     f.className = 'view';
@@ -149,6 +188,7 @@ function refresh(tab) {
     label.textContent = tab.title;
     label.title = tab.url;
   }
+  saveTabs();
 }
 
 function syncBar() {
@@ -156,6 +196,9 @@ function syncBar() {
   if (document.activeElement !== address) address.value = framed ? active.url : '';
   $('back').disabled = $('fwd').disabled = $('reload').disabled = !framed;
   $('star').disabled = !framed;
+  const starred = framed && store.get(FAV, []).some((f) => f.url === active.url);
+  $('star').classList.toggle('on', starred);
+  $('star').title = starred ? 'Remove from favorites' : 'Add to favorites';
   document.title = framed && active.title ? `${active.title} · Klyro` : 'Klyro';
 }
 
@@ -211,12 +254,6 @@ $('home').addEventListener('click', () => {
   Object.assign(active, { frame: null, url: '', title: 'New tab' });
   select(active);
 });
-$('star').addEventListener('click', () => {
-  if (!active?.url) return;
-  const favs = store.get(KEY.fav, []);
-  if (!favs.includes(active.url)) store.set(KEY.fav, [...favs, active.url].slice(0, 20));
-  renderLists();
-});
 address.addEventListener('focus', () => address.select());
 window.addEventListener('keydown', (e) => {
   const mod = e.ctrlKey || e.metaKey;
@@ -224,7 +261,10 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     address.focus();
   }
-  if (mod && e.key.toLowerCase() === 't') {
+  if (mod && e.shiftKey && e.key.toLowerCase() === 't') {
+    e.preventDefault();
+    reopenClosed();
+  } else if (mod && e.key.toLowerCase() === 't') {
     e.preventDefault();
     newTab();
   }
@@ -239,66 +279,124 @@ setInterval(() => {
   if (active?.frame) refresh(active);
 }, 1000);
 
-// ---------- recent, favorites, settings ----------
-function remember(addr) {
-  if (!$('keep').checked) return;
-  store.set(KEY.recent, [addr, ...store.get(KEY.recent, []).filter((x) => x !== addr)].slice(0, 8));
-  renderLists();
+// ---------- saved tabs ----------
+// Only addresses and titles are saved (never session identifiers), so a restored tab starts a fresh
+// session. Sites you were signed in to will ask you to sign in again; Klyro does not keep logins.
+let saveTimer = 0;
+function saveTabs() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(writeTabs, 150);
+}
+function writeTabs() {
+  const list = tabs.map((t) => ({
+    url: t.url || t.pendingUrl || '',
+    title: t.title && t.title !== 'Loading…' ? t.title : '',
+  }));
+  store.set(TABS, { active: Math.max(0, tabs.indexOf(active)), tabs: list });
+}
+window.addEventListener('pagehide', writeTabs);
+
+function restoreTabs() {
+  const saved = store.get(TABS, null);
+  if (!saved || !Array.isArray(saved.tabs) || saved.tabs.length === 0) return false;
+  for (const s of saved.tabs.slice(0, 20)) {
+    tabs.push({
+      id: nextId++,
+      title: s.title || 'New tab',
+      url: '',
+      pendingUrl: typeof s.url === 'string' ? s.url : '',
+      frame: null,
+      button: null,
+    });
+  }
+  select(tabs[Math.min(Math.max(0, saved.active | 0), tabs.length - 1)]);
+  return true;
 }
 
-function renderList(id, items, remove) {
-  const ul = $(id);
+// ---------- favorites ----------
+const COLORS = [
+  '#5b4df0',
+  '#0ea5a4',
+  '#e0662f',
+  '#c2417c',
+  '#3b82f6',
+  '#16a34a',
+  '#a855f7',
+  '#d97706',
+];
+const colorFor = (s) =>
+  COLORS[[...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % COLORS.length];
+const hostOf = (u) => {
+  try {
+    return new URL(u).host.replace(/^www\./, '');
+  } catch {
+    return u;
+  }
+};
+
+function renderFavorites() {
+  const favs = store.get(FAV, []);
+  const ul = $('favorites');
   ul.replaceChildren();
-  if (!items.length) {
+  for (const f of favs) {
+    const host = hostOf(f.url);
     const li = document.createElement('li');
-    li.className = 'empty';
-    li.textContent = 'none yet';
-    ul.append(li);
-    return;
-  }
-  for (const item of items) {
-    const li = document.createElement('li');
-    const a = document.createElement('a');
-    a.textContent = item.replace(/^https?:\/\//, '');
-    a.title = item;
-    a.addEventListener('click', () => open(active ?? newTab(), item));
-    li.append(a);
-    if (remove) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = '×';
-      b.setAttribute('aria-label', 'remove ' + item);
-      b.addEventListener('click', () => remove(item));
-      li.append(b);
-    }
+    li.className = 'fav';
+    li.title = f.url;
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.style.background = colorFor(host);
+    badge.textContent = (host[0] ?? '?').toUpperCase();
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = f.title || host;
+    const rm = document.createElement('button');
+    rm.className = 'rm';
+    rm.type = 'button';
+    rm.textContent = '×';
+    rm.setAttribute('aria-label', 'Remove ' + host);
+    rm.addEventListener('click', (e) => {
+      e.stopPropagation();
+      store.set(
+        FAV,
+        store.get(FAV, []).filter((x) => x.url !== f.url),
+      );
+      renderFavorites();
+      syncBar();
+    });
+    li.append(badge, name, rm);
+    li.addEventListener('click', () => open(active ?? newTab(), f.url));
     ul.append(li);
   }
 }
 
-function renderLists() {
-  renderList('recent', store.get(KEY.recent, []), null);
-  renderList('favorites', store.get(KEY.fav, []), (item) => {
-    store.set(
-      KEY.fav,
-      store.get(KEY.fav, []).filter((x) => x !== item),
-    );
-    renderLists();
-  });
-}
-
-$('clear').addEventListener('click', () => {
-  store.set(KEY.recent, []);
-  store.set(KEY.fav, []);
-  renderLists();
+$('star').addEventListener('click', () => {
+  if (!active?.url) return;
+  const favs = store.get(FAV, []);
+  const i = favs.findIndex((f) => f.url === active.url);
+  if (i >= 0) favs.splice(i, 1);
+  else
+    favs.push({
+      url: active.url,
+      title: active.title && active.title !== 'Loading…' ? active.title : '',
+    });
+  store.set(FAV, favs.slice(0, 18));
+  renderFavorites();
+  syncBar();
 });
-$('keep').checked = store.get(KEY.keep, true);
-$('keep').addEventListener('change', () => {
-  store.set(KEY.keep, $('keep').checked);
-  if (!$('keep').checked) {
-    store.set(KEY.recent, []);
-    renderLists();
-  }
+$('clear').addEventListener('click', (e) => {
+  e.preventDefault();
+  store.set(FAV, []);
+  store.remove(TABS);
+  store.remove(CLOSED);
+  renderFavorites();
+  syncBar();
 });
 
-renderLists();
-newTab();
+// Favorites saved by earlier versions were plain address strings.
+store.set(
+  FAV,
+  store.get(FAV, []).map((f) => (typeof f === 'string' ? { url: f, title: '' } : f)),
+);
+renderFavorites();
+if (!restoreTabs()) newTab();

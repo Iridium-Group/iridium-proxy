@@ -3,21 +3,36 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
     <title>Klyro</title>
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111'/%3E%3Cpath d='M10 7v18M10 16l10-9M10 16l10 9' stroke='%238b93ff' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"
-    />
+    <link rel="icon" type="image/svg+xml" href="logo.svg" />
+    <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta name="theme-color" content="#18181b" />
     <link rel="stylesheet" href="klyro.css" />
   </head>
   <body>
     <header id="chrome">
       <div id="tabs" role="tablist" aria-label="Tabs"></div>
       <form id="bar" autocomplete="off">
-        <button type="button" id="back" title="Back" aria-label="Back">&#8249;</button>
-        <button type="button" id="fwd" title="Forward" aria-label="Forward">&#8250;</button>
-        <button type="button" id="reload" title="Reload" aria-label="Reload">&#8635;</button>
-        <button type="button" id="home" title="Home" aria-label="Home">&#8962;</button>
+        <button type="button" id="back" title="Back" aria-label="Back">
+          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+        </button>
+        <button type="button" id="fwd" title="Forward" aria-label="Forward">
+          <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
+        </button>
+        <button type="button" id="reload" title="Reload" aria-label="Reload">
+          <svg viewBox="0 0 24 24">
+            <path d="M20 12a8 8 0 1 1-2.6-5.9" />
+            <path d="M20 4v5h-5" />
+          </svg>
+        </button>
+        <button type="button" id="home" title="Home" aria-label="Home">
+          <svg viewBox="0 0 24 24">
+            <path d="M4 11l8-7 8 7" />
+            <path d="M6 10v9h4v-5h4v5h4v-9" />
+          </svg>
+        </button>
         <input
           id="address"
           type="text"
@@ -27,66 +42,46 @@
           aria-label="Address"
         />
         <button type="button" id="star" title="Add to favorites" aria-label="Add to favorites">
-          &#9734;
+          <svg viewBox="0 0 24 24">
+            <path d="M12 4l2.5 5.2 5.7.8-4.1 4 1 5.7L12 17l-5.1 2.7 1-5.7-4.1-4 5.7-.8z" />
+          </svg>
         </button>
       </form>
     </header>
 
     <main id="views">
       <section id="homeview">
-        <div class="center">
-          <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
-            <path
-              d="M10 7v18M10 16l10-9M10 16l10 9"
-              stroke="#8b93ff"
-              stroke-width="2.6"
-              fill="none"
-              stroke-linecap="round"
-            />
-          </svg>
-          <h1>KLYRO</h1>
-          <p class="desc">
-            Klyro is Iridium Group's web-access and proxy platform. It does not handle passwords or
-            sign-in pages.
-          </p>
+        <div class="hero">
+          <img class="mark" src="logo.svg" alt="" width="84" height="84" />
+          <h1>Klyro</h1>
+          <p class="tagline">A fast, private web proxy from Iridium Group.</p>
           <form id="go" autocomplete="off">
+            <svg class="lens" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="6.5" />
+              <path d="M16 16l4.5 4.5" />
+            </svg>
             <input
               id="url"
               type="text"
               inputmode="url"
               spellcheck="false"
-              placeholder="Search the web, or enter a URL"
-              aria-label="Search the web, or enter a URL"
+              placeholder="Search the web or enter a URL"
+              aria-label="Search the web or enter a URL"
               autofocus
             />
           </form>
           <p id="note" role="status"></p>
-        </div>
-        <div class="lists">
-          <section>
-            <h2>Recent</h2>
-            <ul id="recent"></ul>
-          </section>
-          <section>
-            <h2>Favorites</h2>
-            <ul id="favorites"></ul>
-          </section>
-          <section>
-            <h2>Settings</h2>
-            <label
-              ><input id="keep" type="checkbox" checked /> remember recent addresses on this
-              device</label
-            >
-            <button id="clear" type="button" class="link">clear recent and favorites</button>
-          </section>
+          <ul id="favorites" aria-label="Favorites"></ul>
+          <p class="fine">Sign-in pages are not supported. Klyro never handles passwords.</p>
         </div>
       </section>
     </main>
 
     <footer id="foot">
-      <a href="/metrics">metrics</a> ·
-      <a href="https://github.com/Iridium-Group/iridium-proxy">source</a> ·
-      <a href="https://github.com/Iridium-Group/iridium-proxy/blob/main/THIRD_PARTY.md">licenses</a>
+      <a href="https://github.com/Iridium-Group">Iridium Group</a>
+      <a href="https://github.com/Iridium-Group/iridium-proxy">GitHub</a>
+      <a href="https://github.com/Iridium-Group/iridium-proxy/blob/main/THIRD_PARTY.md">Credits</a>
+      <a id="clear" href="#">Clear saved data</a>
     </footer>
     <script src="klyro.js"></script>
   </body>
