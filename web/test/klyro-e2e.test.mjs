@@ -23,7 +23,11 @@ describe('klyro native mode in a browser', () => {
         },
         security: { blockPrivateAddresses: false },
       }),
-      { logger: createLogger('silent', 'json'), klyro: { ratePerMinute: 0 } },
+      {
+        logger: createLogger('silent', 'json'),
+        klyro: { ratePerMinute: 0 },
+        crossOriginIsolated: false,
+      },
     );
     const { port } = await proxy.listen(0);
     base = `http://127.0.0.1:${port}`;
@@ -79,6 +83,75 @@ describe('klyro native mode in a browser', () => {
     const { page } = await open('/static.html');
     await page.waitForFunction(() => document.title === 'js ran', undefined, { timeout: 20_000 }); // /app.js ran
     assert.ok((origin.hits.get('/style.css') ?? 0) >= 1);
+    await page.close();
+  });
+
+  it('browser shell: opens a page in a tab, follows its address and title, and goes back', async () => {
+    const page = await browser.newPage();
+    await page.goto(`${base}/`);
+    const app = `http://127.0.0.1:${origin.port}/app.html?ws=${origin.wsPort}`;
+    await page.fill('#url', app);
+    await page.press('#url', 'Enter');
+    const view = page.frameLocator('iframe.view');
+    await view.locator('#hi').waitFor({ timeout: 20_000 });
+    await page.waitForFunction((u) => document.getElementById('address').value === u, app, {
+      timeout: 10_000,
+    });
+    assert.match(await page.locator('.tab[aria-selected=true] .t').textContent(), /app/);
+    assert.equal(await page.locator('#back').isDisabled(), false);
+
+    await view.locator('#next').click();
+    await page.waitForFunction(
+      () => document.getElementById('address').value.endsWith('/static.html'),
+      undefined,
+      { timeout: 10_000 },
+    );
+
+    await page.click('#back');
+    await page.waitForFunction(
+      () => document.getElementById('address').value.includes('/app.html'),
+      undefined,
+      { timeout: 10_000 },
+    );
+    await page.close();
+  });
+
+  it('browser shell: new tab, switching and closing tabs', async () => {
+    const page = await browser.newPage();
+    await page.goto(`${base}/`);
+    await page.fill('#url', `http://127.0.0.1:${origin.port}/static.html`);
+    await page.press('#url', 'Enter');
+    await page.frameLocator('iframe.view').locator('h1').waitFor({ timeout: 20_000 });
+    await page.click('#newtab');
+    assert.equal(await page.locator('.tab').count(), 2);
+    assert.equal(
+      await page.locator('#homeview').isVisible(),
+      true,
+      'a new tab shows the home page',
+    );
+    assert.equal(await page.inputValue('#address'), '');
+    await page.locator('.tab').first().click();
+    assert.equal(
+      await page.locator('#homeview').isVisible(),
+      false,
+      'the first tab shows its page again',
+    );
+    await page.locator('.tab').nth(1).locator('.x').click();
+    assert.equal(await page.locator('.tab').count(), 1);
+    await page.close();
+  });
+
+  it('browser shell: a refused address shows an error inside the frame, with a link back out', async () => {
+    const page = await browser.newPage();
+    await page.goto(`${base}/`);
+    await page.fill('#url', 'http://localhost/');
+    await page.press('#url', 'Enter');
+    const view = page.frameLocator('iframe.view');
+    await view.getByText('Cannot open that address').waitFor({ timeout: 20_000 });
+    assert.equal(
+      await view.locator('a', { hasText: 'Back to Klyro' }).getAttribute('target'),
+      '_top',
+    );
     await page.close();
   });
 

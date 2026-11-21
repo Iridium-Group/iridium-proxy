@@ -6,48 +6,87 @@
     <title>Klyro</title>
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0d12'/%3E%3Cpath d='M9 7v18M9 16l9-9M9 16l9 9' stroke='%238b93ff' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111'/%3E%3Cpath d='M10 7v18M10 16l10-9M10 16l10 9' stroke='%238b93ff' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"
     />
     <link rel="stylesheet" href="klyro.css" />
   </head>
   <body>
-    <main>
-      <h1>KLYRO</h1>
-      <form id="go" autocomplete="off">
+    <header id="chrome">
+      <div id="tabs" role="tablist" aria-label="Tabs"></div>
+      <form id="bar" autocomplete="off">
+        <button type="button" id="back" title="Back" aria-label="Back">&#8249;</button>
+        <button type="button" id="fwd" title="Forward" aria-label="Forward">&#8250;</button>
+        <button type="button" id="reload" title="Reload" aria-label="Reload">&#8635;</button>
+        <button type="button" id="home" title="Home" aria-label="Home">&#8962;</button>
         <input
-          id="url"
+          id="address"
           type="text"
           inputmode="url"
           spellcheck="false"
-          placeholder="Enter URL"
-          aria-label="Enter URL"
-          autofocus
+          placeholder="Search or enter a URL"
+          aria-label="Address"
         />
-        <button type="submit">GO</button>
+        <button type="button" id="star" title="Add to favorites" aria-label="Add to favorites">
+          &#9734;
+        </button>
       </form>
-      <p id="note" role="status"></p>
+    </header>
 
-      <section>
-        <h2>Recent</h2>
-        <ul id="recent"></ul>
-      </section>
-      <section>
-        <h2>Favorites</h2>
-        <ul id="favorites"></ul>
-        <button id="fav" type="button" class="link">+ add the address above</button>
-      </section>
-      <section>
-        <h2>Settings</h2>
-        <label
-          ><input id="keep" type="checkbox" checked /> remember recent addresses on this
-          device</label
-        >
-        <button id="clear" type="button" class="link">clear recent and favorites</button>
+    <main id="views">
+      <section id="homeview">
+        <div class="center">
+          <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+            <path
+              d="M10 7v18M10 16l10-9M10 16l10 9"
+              stroke="#8b93ff"
+              stroke-width="2.6"
+              fill="none"
+              stroke-linecap="round"
+            />
+          </svg>
+          <h1>KLYRO</h1>
+          <p class="desc">
+            Klyro is Iridium Group's web-access and proxy platform. It does not handle passwords or
+            sign-in pages.
+          </p>
+          <form id="go" autocomplete="off">
+            <input
+              id="url"
+              type="text"
+              inputmode="url"
+              spellcheck="false"
+              placeholder="Search the web, or enter a URL"
+              aria-label="Search the web, or enter a URL"
+              autofocus
+            />
+          </form>
+          <p id="note" role="status"></p>
+        </div>
+        <div class="lists">
+          <section>
+            <h2>Recent</h2>
+            <ul id="recent"></ul>
+          </section>
+          <section>
+            <h2>Favorites</h2>
+            <ul id="favorites"></ul>
+          </section>
+          <section>
+            <h2>Settings</h2>
+            <label
+              ><input id="keep" type="checkbox" checked /> remember recent addresses on this
+              device</label
+            >
+            <button id="clear" type="button" class="link">clear recent and favorites</button>
+          </section>
+        </div>
       </section>
     </main>
-    <footer>
-      Klyro by Iridium Group · does not handle sign-ins · <a href="/metrics">metrics</a> ·
-      <a href="https://github.com/Iridium-Group/iridium-proxy">source</a>
+
+    <footer id="foot">
+      <a href="/metrics">metrics</a> ·
+      <a href="https://github.com/Iridium-Group/iridium-proxy">source</a> ·
+      <a href="https://github.com/Iridium-Group/iridium-proxy/blob/main/THIRD_PARTY.md">licenses</a>
     </footer>
     <script src="klyro.js"></script>
   </body>

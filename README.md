@@ -43,7 +43,7 @@ npx klyro benchmark --help
 No configuration is needed. Settings are environment variables
 ([docs/CONFIGURATION.md](docs/CONFIGURATION.md)); the secure defaults block private networks.
 
-Endpoints: `/` (the interface), `/health`, `/ready`, `/metrics` (Prometheus), `/wisp/` (compatibility
+Endpoints: `/` (the browser shell), `/health`, `/ready`, `/metrics` (Prometheus), `/wisp/` (compatibility
 mode), `/k/<session>/...` (proxied pages).
 
 ## Deploy

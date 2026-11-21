@@ -291,7 +291,7 @@ export function createKlyro(options: KlyroOptions): Klyro {
       /json/.test(req.headers.accept ?? '') && !/html/.test(req.headers.accept ?? '');
     const body = wantsJson
       ? JSON.stringify({ error: title, message, requestId: id })
-      : `<!doctype html><meta charset="utf-8"><title>${title}</title><style>body{font:16px system-ui;max-width:34rem;margin:15vh auto;padding:0 1rem;background:#0b0d12;color:#d7dae0}h1{font-size:1.2rem}code{color:#8b93ff}a{color:#8b93ff}</style><h1>${title}</h1><p>${message.replace(/[<>&]/g, '')}</p><p><a href="/">Back to Klyro</a> · <code>${id}</code></p>`;
+      : `<!doctype html><meta charset="utf-8"><title>${title}</title><style>body{font:16px system-ui;max-width:34rem;margin:15vh auto;padding:0 1rem;background:#0b0d12;color:#d7dae0}h1{font-size:1.2rem}code{color:#8b93ff}a{color:#8b93ff}</style><h1>${title}</h1><p>${message.replace(/[<>&]/g, '')}</p><p><a href="/" target="_top">Back to Klyro</a> · <code>${id}</code></p>`;
     res.writeHead(status, {
       'content-type': wantsJson ? 'application/json' : 'text/html; charset=utf-8',
       'content-length': Buffer.byteLength(body),

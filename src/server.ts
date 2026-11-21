@@ -29,6 +29,12 @@ export interface ProxyOptions {
   klyro?: Partial<KlyroConfig>;
   /** Extra trusted CA certificates for origin TLS (tests and private origins). */
   ca?: string | Buffer;
+  /**
+   * Send Cross-Origin-Opener/Embedder-Policy headers on the front end's own files. The Scramjet
+   * client needs them (SharedArrayBuffer); Klyro's page must not have them, because with them the
+   * browser refuses to show proxied pages in its frames. Default true.
+   */
+  crossOriginIsolated?: boolean;
 }
 
 function normalizePath(path: string): string {
@@ -59,9 +65,11 @@ export function createProxyServer(config: IridiumConfig, options: ProxyOptions =
 
   const server = createServer(async (req, res) => {
     if (await klyro.handle(req, res)) return;
-    // Needed for SharedArrayBuffer, which the browser client's transport layer uses.
-    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-    res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+    // Needed for SharedArrayBuffer, which the Scramjet client's transport layer uses.
+    if (options.crossOriginIsolated !== false) {
+      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+    }
     const pathname = (req.url ?? '/').split('?')[0];
     if (pathname === '/healthz') {
       res.writeHead(200, { 'content-type': 'application/json' });

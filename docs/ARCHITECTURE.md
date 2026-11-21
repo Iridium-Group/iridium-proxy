@@ -54,6 +54,16 @@ every other request. Rewriting is narrow:
 - JavaScript is never rewritten. A 1 KB runtime (`/klyro/shim.js`) is injected into HTML and sends
   `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` and `sendBeacon` calls through the proxy.
 
+## The browser shell (`ui/`)
+
+A small, dependency-free front end: a home page (title, short description, one search box, recent and
+favorites) and, once you open something, a browser frame with tabs, back, forward, reload, home and an
+address bar. Each tab is an `<iframe>` pointing at `/klyro/go?u=...`, which opens a session and redirects
+to the proxied address. Because the frame is same-origin with the shell, the shell reads each page's
+real URL and title and keeps the address bar and tab labels in step, including for pages that change
+URL without reloading (it checks once a second). Shortcuts: Ctrl/Cmd+L, T and W. It never runs
+inside its own frame (an error page's "Back to Klyro" link targets the top window).
+
 ## Components (src/klyro/)
 
 | File                                      | Job                                                                            |

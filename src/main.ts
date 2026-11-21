@@ -21,8 +21,10 @@ export async function main(argv: readonly string[], env: NodeJS.ProcessEnv): Pro
   const bundled = fileURLToPath(
     new URL(env.KLYRO_UI === 'compat' ? '../web/public/' : '../ui/', import.meta.url),
   );
+  let usingKlyroUi = false;
   if ((!existsSync(config.server.staticDir) || env.KLYRO_UI === 'compat') && existsSync(bundled)) {
     config = { ...config, server: { ...config.server, staticDir: bundled } };
+    usingKlyroUi = env.KLYRO_UI !== 'compat';
   }
   // Optional monthly bandwidth cap, e.g. IRIDIUM_MONTHLY_CAP=900MB. Not part of the config file.
   let capBytes: number | null = null;
@@ -36,7 +38,9 @@ export async function main(argv: readonly string[], env: NodeJS.ProcessEnv): Pro
     }
   }
   const usage = new UsageMeter({ capBytes, file: env.IRIDIUM_USAGE_FILE });
-  const proxy = createProxyServer(config, { usage });
+  // Klyro's own page embeds proxied pages in frames, which cross-origin isolation would block.
+  // The Scramjet client (and any front end of your own) keeps the isolation it needs.
+  const proxy = createProxyServer(config, { usage, crossOriginIsolated: !usingKlyroUi });
   await proxy.listen(port);
   const stop = () => void proxy.close().then(() => process.exit(0));
   process.once('SIGINT', stop);
