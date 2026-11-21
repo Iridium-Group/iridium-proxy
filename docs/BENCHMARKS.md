@@ -150,3 +150,43 @@ Improvement: 1.38x throughput, 1.25x lower median latency (baseline / target)
 
 The command compares throughput of `--target` over `--baseline`, and prints the 5x check as PASS
 or FAIL. With no baseline it prints N/A. Here it printed FAIL, honestly.
+
+## Cold first visit: preconnect and pre-warmed connections (`node bench/coldstart.ts`)
+
+Klyro opens connections to a site's origin ahead of need: when you press Go (several, in parallel with
+the page fetch), when a page is served (for its own origin), and for the other hosts the page
+references (capped). A request that arrives while one is still being set up claims it and waits only
+for the rest of the handshake. This benchmark gives every new connection to the fixture origin a
+simulated 50 ms setup cost (like a real network handshake), keeps the browser-to-Klyro connection
+open (as HTTP/2 would), and uses short idle timeouts so every Klyro page load starts with no origin
+connections.
+
+```
+/many.html, origin connection cost 50 ms, 12 cold page loads each
+mode       |   p50 |  mean |   min |   max
+direct     |   104 |   105 |   102 |   117   ms   (html phase p50 51 ms, assets phase p50 53 ms)
+klyro-off  |   143 |   147 |   108 |   201   ms   (html phase p50 56 ms, assets phase p50 86 ms)
+klyro-on   |   121 |   140 |   106 |   247   ms   (html phase p50 55 ms, assets phase p50 66 ms)
+klyro-on is 1.18x faster than klyro-off, and 0.86x vs direct (p50)
+
+/css-heavy.html, origin connection cost 50 ms, 12 cold page loads each
+mode       |   p50 |  mean |   min |   max
+direct     |   104 |   104 |   102 |   108   ms   (html phase p50 51 ms, assets phase p50 53 ms)
+klyro-off  |   122 |   129 |   117 |   161   ms   (html phase p50 54 ms, assets phase p50 68 ms)
+klyro-on   |   114 |   117 |   109 |   130   ms   (html phase p50 54 ms, assets phase p50 60 ms)
+klyro-on is 1.07x faster than klyro-off, and 0.91x vs direct (p50)
+klyro-off: origin connections opened 144, reused 1320; warm opened 0, used 0, expired unused 0
+klyro-on: origin connections opened 146, reused 1318; warm opened 120, used 120, expired unused 0
+```
+
+What this shows, and what it does not:
+
+- **Preconnect works as designed**: every warm connection was used (120 of 120), and cold page loads
+  were 1.07x to 1.18x faster than Klyro without it (p50). The mean and maximum are noisy on this machine.
+- **It does not make Klyro faster than a direct connection.** Klyro on stayed at 0.86x to 0.91x of
+  direct. The first handshake (the HTML phase, about 51-55 ms in every mode) cannot be skipped, and the
+  proxy does real work per request that a direct connection does not: rewriting roughly 1 MB of CSS on
+  the CSS-heavy page, and handling 100 separate asset requests on the other.
+- The only way a proxy beats direct on a cold visit is when the proxy's own path to the site is better
+  than yours (a datacenter link against a congested home or school connection). That cannot be shown on
+  one machine; measure it on your own connection.

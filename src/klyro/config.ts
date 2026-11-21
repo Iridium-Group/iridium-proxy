@@ -33,6 +33,16 @@ export interface KlyroConfig {
   transformWorkers: number;
   /** TRANSFORM_OFFLOAD_MIN: bodies at least this big are rewritten on a worker. */
   transformOffloadBytes: number;
+  /** PRECONNECT=0 turns off opening origin connections ahead of need. */
+  preconnect: boolean;
+  /** PREWARM_CONNECTIONS: warm connections opened to a page's own origin when the page is served. */
+  prewarmConnections: number;
+  /** PRECONNECT_MAX_HOSTS: most other hosts a page may cause a preconnect to. */
+  preconnectMaxHosts: number;
+  /** WARM_IDLE: milliseconds an unused warm connection is kept before it is closed. */
+  warmIdleMs: number;
+  /** WARM_MAX: most warm connections held at once. */
+  warmMax: number;
   /** KLYRO_POOL=0 disables upstream connection reuse (for benchmarking only). */
   pool: boolean;
   /** KLYRO_FORCE_TRANSFORM=1 sends everything through the slow path (for benchmarking only). */
@@ -55,6 +65,11 @@ export const DEFAULT_KLYRO_CONFIG: KlyroConfig = {
   ratePerMinute: 3000,
   transformWorkers: Math.min(2, Math.max(0, availableParallelism() - 1)),
   transformOffloadBytes: 256 * 1024,
+  preconnect: true,
+  prewarmConnections: 4,
+  preconnectMaxHosts: 6,
+  warmIdleMs: 10_000,
+  warmMax: 32,
   pool: true,
   forceTransform: false,
 };
@@ -98,6 +113,11 @@ export function klyroConfigFromEnv(env: EnvSource = process.env): KlyroConfig {
     ratePerMinute: num(env, 'RATE_LIMIT', d.ratePerMinute),
     transformWorkers: num(env, 'TRANSFORM_WORKERS', d.transformWorkers),
     transformOffloadBytes: size(env, 'TRANSFORM_OFFLOAD_MIN', d.transformOffloadBytes),
+    preconnect: env.PRECONNECT !== '0',
+    prewarmConnections: num(env, 'PREWARM_CONNECTIONS', d.prewarmConnections),
+    preconnectMaxHosts: num(env, 'PRECONNECT_MAX_HOSTS', d.preconnectMaxHosts),
+    warmIdleMs: num(env, 'WARM_IDLE', d.warmIdleMs),
+    warmMax: Math.max(0, num(env, 'WARM_MAX', d.warmMax)),
     pool: env.KLYRO_POOL !== '0',
     forceTransform: env.KLYRO_FORCE_TRANSFORM === '1',
   };

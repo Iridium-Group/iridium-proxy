@@ -38,6 +38,11 @@ request
         anything else (images, video, JS, JSON, ranges, 304, HEAD) -> FAST path
 ```
 
+**Preconnect.** The pool also opens connections before they are needed: when you press Go (so the
+handshakes overlap the page fetch), when an HTML page is served (for its own origin), and for the other
+hosts it references. They are parked with a short idle timeout and hard caps, and a request that arrives
+while one is still connecting claims it. Every one passes the same destination checks as a request.
+
 **Fast path** (the default): the origin's bytes are streamed to the client as they arrive. Nothing is
 parsed, rewritten or fully buffered, so an 8 MB image or a long download never sits in RAM. Content
 encoding (gzip, br) passes through untouched.

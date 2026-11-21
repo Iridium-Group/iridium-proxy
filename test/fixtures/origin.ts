@@ -8,7 +8,7 @@ import {
   type ServerResponse,
 } from 'node:http';
 import { createServer as createHttps } from 'node:https';
-import type { AddressInfo } from 'node:net';
+import { createServer as createTcp, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -19,6 +19,8 @@ export interface Origin {
   /** Port of the WebSocket echo server (path /ws-echo). */
   wsPort: number;
   server: Server;
+  /** TCP connections accepted so far. */
+  connections: { count: number };
   /** Requests received per path. */
   hits: Map<string, number>;
   /** Headers of the most recent request per path. */
@@ -57,8 +59,13 @@ export function selfSignedCert(host = 'origin.test') {
 export const PAGE = `<!doctype html><html><head><title>fixture</title><link rel="stylesheet" href="/style.css"><script src="/app.js"></script></head><body><h1 id="hi">hello</h1><a href="/other">other</a><img src="img.png"></body></html>`;
 
 export async function startOrigin(
-  options: { tls?: { key: Buffer; cert: Buffer } } = {},
+  options: {
+    tls?: { key: Buffer; cert: Buffer };
+    /** Every new connection waits this long before the server reads from it, like a handshake across a network. */
+    connectDelayMs?: number;
+  } = {},
 ): Promise<Origin> {
+  const connections = { count: 0 };
   const hits = new Map<string, number>();
   const lastHeaders = new Map<string, IncomingMessage['headers']>();
   let openGate!: () => void;
@@ -96,6 +103,9 @@ export async function startOrigin(
     const url = new URL(req.url ?? '/', 'http://x');
     const path = url.pathname;
     hits.set(path, (hits.get(path) ?? 0) + 1);
+    // ?delay=ms makes the origin answer after a pause, like a site across a real network.
+    const delay = Number(url.searchParams.get('delay') ?? 0);
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
     lastHeaders.set(path, req.headers);
     const send = (
       status: number,
@@ -146,6 +156,12 @@ export async function startOrigin(
   document.getElementById('out').textContent = JSON.stringify(out);
 })();
 </script></body></html>`,
+        );
+      case '/many-hosts.html':
+        return send(
+          200,
+          { 'content-type': 'text/html; charset=utf-8' },
+          `<!doctype html><html><head><title>hosts</title>${Array.from({ length: 30 }, (_, i) => `<link rel="stylesheet" href="http://host${i}.example.test/s.css">`).join('')}</head><body>x</body></html>`,
         );
       case '/static.html':
         return send(200, { 'content-type': 'text/html; charset=utf-8' }, html);
@@ -290,6 +306,16 @@ export async function startOrigin(
   };
 
   const server = options.tls ? createHttps(options.tls, handler) : createHttp(handler);
+  // A Node HTTP server takes control of a socket as soon as it is accepted, so pausing it afterwards
+  // does nothing. To simulate a slow handshake, accept connections with a plain TCP server that
+  // holds each one for a while, then hand it to the HTTP (or HTTPS) server.
+  const front = createTcp({ pauseOnConnect: true }, (socket) => {
+    connections.count += 1;
+    setTimeout(() => {
+      server.emit('connection', socket);
+      socket.resume();
+    }, options.connectDelayMs ?? 0);
+  });
   // WebSocket echo lives on its own port. A Node server with an 'upgrade' listener takes over any
   // connection that sends an Upgrade header (libcurl sends h2c), which would break keep-alive for
   // the plain HTTP routes above.
@@ -300,11 +326,12 @@ export async function startOrigin(
     ws.on('message', (d, isBinary) => ws.send(d, { binary: isBinary }));
   });
   await new Promise<void>((r) => wsServer.listen(0, '127.0.0.1', r));
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  await new Promise<void>((r) => front.listen(0, '127.0.0.1', r));
   return {
-    port: (server.address() as AddressInfo).port,
+    port: (front.address() as AddressInfo).port,
     wsPort: (wsServer.address() as AddressInfo).port,
     server,
+    connections,
     hits,
     lastHeaders,
     gate: {
@@ -318,6 +345,7 @@ export async function startOrigin(
         wss.close();
         wsServer.close();
         wsServer.closeAllConnections();
+        front.close();
         server.close(() => resolve());
         server.closeAllConnections();
       }),

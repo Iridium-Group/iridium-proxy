@@ -21,26 +21,31 @@ The sections Klyro uses:
 
 ## Klyro limits (environment only)
 
-| Variable                | Default             | Meaning                                                     |
-| ----------------------- | ------------------- | ----------------------------------------------------------- |
-| `KLYRO_ENABLED`         | `1`                 | `0` turns native mode off (Wisp only)                       |
-| `KLYRO_UI`              | `klyro`             | `compat` serves the Scramjet client instead                 |
-| `MAX_SESSIONS`          | `500`               | Live sessions; the least recently used is evicted when full |
-| `SESSION_TTL`           | `1800`              | Idle seconds before a session expires                       |
-| `MAX_CONNECTIONS`       | `128`               | Simultaneous upstream sockets                               |
-| `MAX_REQUEST_SIZE`      | `10MB`              | Largest request body (413 above)                            |
-| `MAX_RESPONSE_SIZE`     | `2GB`               | A response stream is cut off past this                      |
-| `MAX_TRANSFORM_SIZE`    | `8MB`               | HTML/CSS larger than this passes through unrewritten        |
-| `CACHE_SIZE`            | `64MB`              | Memory cache budget; `0` turns the cache off                |
-| `CACHE_ITEM_SIZE`       | `1MB`               | Largest single cached response                              |
-| `REQUEST_TIMEOUT`       | `30000`             | Milliseconds to connect and get response headers            |
-| `IDLE_TIMEOUT`          | `15000`             | Milliseconds an unused upstream socket is kept              |
-| `DNS_TTL`               | `60`                | Seconds DNS answers are cached                              |
-| `RATE_LIMIT`            | `3000`              | Requests per minute per client; `0` turns it off            |
-| `TRANSFORM_WORKERS`     | `min(2, cores - 1)` | Worker threads for large pages; `0` = inline                |
-| `TRANSFORM_OFFLOAD_MIN` | `256KB`             | Pages at least this big go to a worker                      |
-| `IRIDIUM_MONTHLY_CAP`   | none                | Monthly bandwidth cap for the Wisp relay, e.g. `900MB`      |
-| `IRIDIUM_USAGE_FILE`    | none                | File that keeps the cap's count across restarts             |
+| Variable                | Default             | Meaning                                                                    |
+| ----------------------- | ------------------- | -------------------------------------------------------------------------- |
+| `KLYRO_ENABLED`         | `1`                 | `0` turns native mode off (Wisp only)                                      |
+| `KLYRO_UI`              | `klyro`             | `compat` serves the Scramjet client instead                                |
+| `MAX_SESSIONS`          | `500`               | Live sessions; the least recently used is evicted when full                |
+| `SESSION_TTL`           | `1800`              | Idle seconds before a session expires                                      |
+| `MAX_CONNECTIONS`       | `128`               | Simultaneous upstream sockets                                              |
+| `MAX_REQUEST_SIZE`      | `10MB`              | Largest request body (413 above)                                           |
+| `MAX_RESPONSE_SIZE`     | `2GB`               | A response stream is cut off past this                                     |
+| `MAX_TRANSFORM_SIZE`    | `8MB`               | HTML/CSS larger than this passes through unrewritten                       |
+| `CACHE_SIZE`            | `64MB`              | Memory cache budget; `0` turns the cache off                               |
+| `CACHE_ITEM_SIZE`       | `1MB`               | Largest single cached response                                             |
+| `REQUEST_TIMEOUT`       | `30000`             | Milliseconds to connect and get response headers                           |
+| `IDLE_TIMEOUT`          | `15000`             | Milliseconds an unused upstream socket is kept                             |
+| `DNS_TTL`               | `60`                | Seconds DNS answers are cached                                             |
+| `RATE_LIMIT`            | `3000`              | Requests per minute per client; `0` turns it off                           |
+| `PRECONNECT`            | `1`                 | `0` turns off opening origin connections ahead of need                     |
+| `PREWARM_CONNECTIONS`   | `4`                 | Connections opened to a site when you press Go and when its page is served |
+| `PRECONNECT_MAX_HOSTS`  | `6`                 | Most other hosts one page can cause a preconnect to                        |
+| `WARM_IDLE`             | `10000`             | Milliseconds an unused warm connection is kept before it is closed         |
+| `WARM_MAX`              | `32`                | Most warm connections held at once                                         |
+| `TRANSFORM_WORKERS`     | `min(2, cores - 1)` | Worker threads for large pages; `0` = inline                               |
+| `TRANSFORM_OFFLOAD_MIN` | `256KB`             | Pages at least this big go to a worker                                     |
+| `IRIDIUM_MONTHLY_CAP`   | none                | Monthly bandwidth cap for the Wisp relay, e.g. `900MB`                     |
+| `IRIDIUM_USAGE_FILE`    | none                | File that keeps the cap's count across restarts                            |
 
 Sizes accept `KB`, `MB`, `GB`, `TB` (decimal). Times are as shown; `SESSION_TTL` and `DNS_TTL` are in
 seconds, the others in milliseconds. A bad value stops start-up with a message naming the variable.

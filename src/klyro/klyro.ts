@@ -181,6 +181,15 @@ export function createKlyro(options: KlyroOptions): Klyro {
     maxConnections: config.maxConnections,
     idleTimeoutMs: config.idleTimeoutMs,
     keepAlive: config.pool,
+    ...(config.pool && config.preconnect && config.warmMax > 0
+      ? {
+          warm: {
+            maxTotal: config.warmMax,
+            maxPerOrigin: Math.max(config.prewarmConnections, 2),
+            idleMs: config.warmIdleMs,
+          },
+        }
+      : {}),
     ...(options.ca ? { ca: options.ca } : {}),
   });
   const sessions = new SessionStore({ max: config.maxSessions, ttlMs: config.sessionTtlMs });
@@ -255,6 +264,21 @@ export function createKlyro(options: KlyroOptions): Klyro {
     'Origin requests that failed before a response',
     () => pool.stats.failed,
   );
+  metrics.derived(
+    'klyro_warm_connections_created_total',
+    'Connections opened ahead of need',
+    () => pool.stats.warmCreated,
+  );
+  metrics.derived(
+    'klyro_warm_connections_used_total',
+    'Warm connections a request used',
+    () => pool.stats.warmUsed,
+  );
+  metrics.derived(
+    'klyro_warm_connections_expired_total',
+    'Warm connections closed unused',
+    () => pool.stats.warmExpired,
+  );
   metrics.derived('klyro_dns_cache_hits_total', 'DNS answers served from cache', () => dns.hits);
   metrics.derived(
     'klyro_dns_cache_misses_total',
@@ -268,6 +292,20 @@ export function createKlyro(options: KlyroOptions): Klyro {
   metrics.gauge('klyro_process_resident_memory_bytes', 'Resident set size', () =>
     process.memoryUsage.rss(),
   );
+
+  /**
+   * Open connections to an origin before a request needs them. Only for addresses that pass the
+   * same host-name rules as a real request; the pool checks the port and DNS as well.
+   */
+  const warmUp = (target: URL, count: number): void => {
+    if (!config.pool || !config.preconnect || count < 1) return;
+    try {
+      policy.checkUrl(target);
+    } catch {
+      return;
+    }
+    void pool.preconnect(target, count);
+  };
 
   let closing = false;
   const wss = new WebSocketServer({ noServer: true, maxPayload: 8 * 1024 * 1024 });
@@ -668,6 +706,26 @@ export function createKlyro(options: KlyroOptions): Klyro {
       const label = charsetOf(first(ures.headers['content-type']));
       const out = Buffer.from(await transformer.run(route, raw, label, target.href, session.id));
       observeTransform((performance.now() - t1) / 1000);
+      if (route === 'html' && status === 200 && method === 'GET') {
+        // The browser is about to fetch this page's assets. Open connections for them now.
+        warmUp(target, config.prewarmConnections);
+        const head = Buffer.from(out.buffer, out.byteOffset, Math.min(out.length, 131072)).toString(
+          'utf8',
+        );
+        const seen = new Set<string>([target.host]);
+        const refs = new RegExp(`/k/${session.id}/(https?)/([^/"'\\s?#)<>]+)`, 'g');
+        for (const m of head.matchAll(refs)) {
+          if (seen.size > config.preconnectMaxHosts) break;
+          const key = m[2]!;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          try {
+            warmUp(new URL(`${m[1]}://${key}/`), 1);
+          } catch {
+            // Not a usable host name.
+          }
+        }
+      }
       delete base['content-encoding'];
       delete base['etag'];
       delete base['last-modified'];
@@ -823,6 +881,9 @@ export function createKlyro(options: KlyroOptions): Klyro {
           throw new HttpFailure(400, 'bad_url', 'That is not a valid web address');
         }
         policy.checkUrl(target);
+        // Start the connections now, while the browser follows the redirect and asks for the page:
+        // their handshakes then overlap the page fetch instead of following it.
+        warmUp(target, config.prewarmConnections);
         const session = sessions.create();
         res.writeHead(302, {
           location: encodeProxyPath(session.id, target),

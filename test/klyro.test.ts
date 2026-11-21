@@ -385,12 +385,28 @@ describe('klyro: cache', () => {
 describe('klyro: connections', () => {
   it('reuses origin connections', async () => {
     const origin = await startOrigin();
-    const h = await start(origin);
+    // Preconnect off: this is about reusing connections that were opened because a request needed them.
+    const h = await start(origin, { klyro: { preconnect: false } });
     try {
       const s = await h.session(`http://origin.test:${origin.port}/`);
       for (let i = 0; i < 10; i++) await (await fetch(s.path(`/static.html?i=${i}`))).text();
       const { created, reused } = h.proxy.klyro.pool.stats;
       assert.ok(created >= 1 && created <= 2, `created ${created}`);
+      assert.ok(reused >= 8, `reused ${reused}`);
+    } finally {
+      await h.proxy.close();
+      await origin.close();
+    }
+  });
+
+  it('with preconnect on, opens no connections beyond the warm ones and still reuses them', async () => {
+    const origin = await startOrigin();
+    const h = await start(origin);
+    try {
+      const s = await h.session(`http://origin.test:${origin.port}/`);
+      for (let i = 0; i < 10; i++) await (await fetch(s.path(`/static.html?i=${i}`))).text();
+      const { created, reused, warmCreated } = h.proxy.klyro.pool.stats;
+      assert.ok(created - warmCreated <= 1, `on-demand connections: ${created - warmCreated}`);
       assert.ok(reused >= 8, `reused ${reused}`);
     } finally {
       await h.proxy.close();
@@ -478,6 +494,155 @@ describe('klyro: connection failures', () => {
       assert.ok(!lines.join('\n').includes('/secret/path'));
     } finally {
       await h.proxy.close();
+      await origin.close();
+    }
+  });
+});
+
+describe('klyro: preconnect and pre-warmed connections', () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  /** Open a session, wait for any warm connection to finish, then time the first real request. */
+  async function firstRequestMs(h: Harness, origin: Origin, wait: number) {
+    const s = await h.session(`http://origin.test:${origin.port}/`);
+    await sleep(wait);
+    const start = performance.now();
+    const res = await fetch(s.path('/static.html'));
+    await res.text();
+    return { ms: performance.now() - start, status: res.status };
+  }
+
+  it('makes the first request faster by opening the connection while the browser follows the redirect', async () => {
+    // Each new connection to the origin costs 120 ms, like a handshake across a network.
+    const origin = await startOrigin({ connectDelayMs: 120 });
+    const on = await start(origin, { klyro: { preconnect: true } });
+    const off = await start(origin, { klyro: { preconnect: false } });
+    try {
+      const warm = await firstRequestMs(on, origin, 300);
+      const cold = await firstRequestMs(off, origin, 300);
+      assert.equal(warm.status, 200);
+      assert.equal(cold.status, 200);
+      assert.ok(
+        cold.ms >= 100,
+        `without preconnect the first request pays the handshake (${cold.ms.toFixed(0)} ms)`,
+      );
+      assert.ok(
+        warm.ms < cold.ms - 60,
+        `with preconnect it does not: ${warm.ms.toFixed(0)} ms against ${cold.ms.toFixed(0)} ms`,
+      );
+      assert.ok(on.proxy.klyro.pool.stats.warmUsed >= 1);
+      assert.equal(off.proxy.klyro.pool.stats.warmCreated, 0);
+    } finally {
+      await on.proxy.close();
+      await off.proxy.close();
+      await origin.close();
+    }
+  });
+
+  it('opens connections to the page origin when a page is served, so parallel assets find them ready', async () => {
+    const origin = await startOrigin();
+    const h = await start(origin, { klyro: { prewarmConnections: 3 } });
+    try {
+      const s = await h.session(`http://origin.test:${origin.port}/`);
+      await (await fetch(s.path('/static.html'))).text();
+      await sleep(150);
+      assert.ok(
+        h.proxy.klyro.pool.stats.warmCreated >= 3,
+        `created ${h.proxy.klyro.pool.stats.warmCreated}`,
+      );
+      await (await fetch(s.path('/app.js'))).text();
+      assert.ok(h.proxy.klyro.pool.stats.warmUsed >= 1);
+    } finally {
+      await h.proxy.close();
+      await origin.close();
+    }
+  });
+
+  it('never exceeds its caps, however many hosts a page references', async () => {
+    const origin = await startOrigin();
+    const h = await start(origin, {
+      klyro: { prewarmConnections: 50, warmMax: 5, preconnectMaxHosts: 3 },
+    });
+    try {
+      const s = await h.session(`http://origin.test:${origin.port}/`);
+      await (await fetch(s.path('/many-hosts.html'))).text();
+      await sleep(150);
+      const { warmCreated, active } = h.proxy.klyro.pool.stats;
+      assert.ok(warmCreated <= 6, `warm connections opened: ${warmCreated}`);
+      assert.ok(active <= 6, `open sockets: ${active}`);
+    } finally {
+      await h.proxy.close();
+      await origin.close();
+    }
+  });
+
+  it('closes warm connections nobody uses', async () => {
+    const origin = await startOrigin();
+    const h = await start(origin, { klyro: { warmIdleMs: 100 } });
+    try {
+      await h.session(`http://origin.test:${origin.port}/`);
+      await sleep(80);
+      assert.ok(h.proxy.klyro.pool.stats.warmCreated >= 1);
+      await sleep(400);
+      assert.ok(h.proxy.klyro.pool.stats.warmExpired >= 1, 'the idle connection was closed');
+      assert.equal(h.proxy.klyro.pool.stats.active, 0, 'nothing is left open');
+    } finally {
+      await h.proxy.close();
+      await origin.close();
+    }
+  });
+
+  it('applies the same destination rules as a real request: nothing private is ever connected to', async () => {
+    const origin = await startOrigin();
+    // Private addresses blocked (the default); the name resolves to the origin on loopback.
+    const h = await start(origin, { security: { blockPrivateAddresses: true } });
+    try {
+      for (const target of [
+        `http://origin.test:${origin.port}/`,
+        `http://localhost:${origin.port}/`,
+        `http://127.0.0.1:${origin.port}/`,
+      ]) {
+        await fetch(`${h.base}/klyro/go?u=${encodeURIComponent(target)}`, { redirect: 'manual' });
+      }
+      await sleep(300);
+      assert.equal(origin.connections.count, 0, 'the origin must not see any connection');
+    } finally {
+      await h.proxy.close();
+      await origin.close();
+    }
+  });
+
+  it('works for HTTPS origins too', async () => {
+    const tls = selfSignedCert();
+    const origin = await startOrigin({ tls, connectDelayMs: 100 });
+    const h = await start(origin, { ca: tls.cert });
+    try {
+      const s = await h.session(`https://origin.test:${origin.port}/`);
+      await sleep(350);
+      const res = await fetch(s.path('/static.html'));
+      assert.equal(res.status, 200);
+      assert.ok((await res.text()).includes('hello'));
+      assert.ok(h.proxy.klyro.pool.stats.warmUsed >= 1, 'a warm TLS connection was used');
+    } finally {
+      await h.proxy.close();
+      await origin.close();
+    }
+  });
+
+  it('is off when PRECONNECT is off or the pool is off', async () => {
+    const origin = await startOrigin();
+    const a = await start(origin, { klyro: { preconnect: false } });
+    const b = await start(origin, { klyro: { pool: false } });
+    try {
+      for (const h of [a, b]) {
+        const s = await h.session(`http://origin.test:${origin.port}/`);
+        await (await fetch(s.path('/static.html'))).text();
+        await sleep(100);
+        assert.equal(h.proxy.klyro.pool.stats.warmCreated, 0);
+      }
+    } finally {
+      await a.proxy.close();
+      await b.proxy.close();
       await origin.close();
     }
   });

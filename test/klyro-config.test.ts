@@ -33,6 +33,25 @@ describe('klyro config from the environment', () => {
     assert.throws(() => klyroConfigFromEnv({ CACHE_SIZE: 'big' }), /CACHE_SIZE/);
     assert.throws(() => klyroConfigFromEnv({ SESSION_TTL: '-1' }), /SESSION_TTL/);
   });
+  it('reads the preconnect settings, with sensible defaults', () => {
+    const d = klyroConfigFromEnv({});
+    assert.equal(d.preconnect, true);
+    assert.ok(d.prewarmConnections >= 1 && d.prewarmConnections <= 8);
+    assert.ok(d.warmIdleMs >= 1000, 'warm connections must not be held for a few milliseconds');
+    assert.ok(d.warmMax >= d.prewarmConnections);
+    const c = klyroConfigFromEnv({
+      PRECONNECT: '0',
+      PREWARM_CONNECTIONS: '2',
+      PRECONNECT_MAX_HOSTS: '3',
+      WARM_IDLE: '2500',
+      WARM_MAX: '9',
+    });
+    assert.deepEqual(
+      [c.preconnect, c.prewarmConnections, c.preconnectMaxHosts, c.warmIdleMs, c.warmMax],
+      [false, 2, 3, 2500, 9],
+    );
+  });
+
   it('lets the pool, force-transform and enabled switches be set', () => {
     const c = klyroConfigFromEnv({
       KLYRO_POOL: '0',

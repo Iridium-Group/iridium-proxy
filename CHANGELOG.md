@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Preconnect and pre-warmed connection pool (`PRECONNECT`, `PREWARM_CONNECTIONS`, `WARM_*`), with caps,
+  idle expiry and the same destination checks as a request.
+- Browser shell with tabs, address bar and navigation; IPv4-first DNS with failover and one retry;
+  failure reasons in the log; bandwidth cap for native mode; safer VM updates.
+
 ## 0.2.0: Klyro
 
 - **Native HTTP proxy** (`src/klyro/`): path-style proxied URLs, fast path versus transform path
