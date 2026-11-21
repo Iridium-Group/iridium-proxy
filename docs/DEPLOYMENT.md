@@ -56,8 +56,10 @@ curl -fsSL https://raw.githubusercontent.com/Iridium-Group/iridium-proxy/main/de
 ```
 
 `PORT` is the port Klyro listens on locally (always on 127.0.0.1); Caddy forwards to it. The
-installer also keeps a dated copy of any existing Caddy config (`/etc/caddy/Caddyfile.bak.*`) before
-replacing it.
+installer never replaces a Caddy config of yours: it writes its own site to `/etc/caddy/klyro.caddy`
+and adds one `import` line to your Caddyfile (keeping a dated backup, `Caddyfile.bak.*`). It validates the
+result first, restores your file if validation fails, and reloads Caddy instead of restarting it, so
+WebSocket connections on your other sites stay up.
 
 ## 3. Check
 
