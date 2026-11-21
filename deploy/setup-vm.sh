@@ -109,11 +109,13 @@ if [ -z "${DOMAIN:-}" ]; then
   IP=$(curl -fsS https://api.ipify.org)
   DOMAIN="${IP//./-}.nip.io"
 fi
-# Keep a copy of any Caddy config that is already there; this script replaces it.
-if [ -s /etc/caddy/Caddyfile ] && ! grep -q 'flush_interval -1' /etc/caddy/Caddyfile; then
-  cp /etc/caddy/Caddyfile "/etc/caddy/Caddyfile.bak.$(date +%Y%m%d%H%M%S)"
-fi
-cat > /etc/caddy/Caddyfile <<CADDY
+# Caddy: add our site as its own file and import it. Never replace a Caddyfile that is not ours,
+# because other sites (and certificates) may depend on it.
+CADDY_DIR=${CADDY_DIR:-/etc/caddy}
+install_caddy_site() {
+  local main="$CADDY_DIR/Caddyfile" site="$CADDY_DIR/klyro.caddy" backup=""
+  mkdir -p "$CADDY_DIR"
+  cat > "$site" <<CADDY
 $DOMAIN {
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:$PORT {
@@ -122,6 +124,30 @@ $DOMAIN {
 	}
 }
 CADDY
+  # Back up the existing file, but only if this run is going to change it.
+  if [ -s "$main" ] && ! grep -q 'klyro.caddy' "$main"; then
+    backup="$main.bak.$(date +%Y%m%d%H%M%S)"
+    cp "$main" "$backup"
+  fi
+  if [ ! -s "$main" ]; then
+    printf '# Klyro (added by setup-vm.sh)\nimport %s\n' "$site" > "$main"
+  elif grep -q 'klyro.caddy' "$main"; then
+    :  # already imported: nothing to change
+  elif grep -q 'root \* /usr/share/caddy' "$main" || { grep -q 'flush_interval -1' "$main" && ! grep -q '^import ' "$main"; }; then
+    # The package's sample config, or the single-site file an earlier version of this script wrote.
+    printf '# Klyro (added by setup-vm.sh)\nimport %s\n' "$site" > "$main"
+  else
+    # Someone's own config: keep all of it and add one line.
+    printf '\n# Klyro (added by setup-vm.sh)\nimport %s\n' "$site" >> "$main"
+  fi
+  if command -v caddy >/dev/null && ! caddy validate --config "$main" --adapter caddyfile >/dev/null 2>&1; then
+    echo "The Caddy configuration did not validate after adding Klyro's site." >&2
+    caddy validate --config "$main" --adapter caddyfile 2>&1 | tail -5 >&2 || true
+    if [ -n "$backup" ]; then cp "$backup" "$main"; echo "Your original Caddyfile has been restored." >&2; fi
+    return 1
+  fi
+}
+install_caddy_site
 
 # Ubuntu images on some clouds ship firewall rules that block 80/443; allow them.
 if command -v iptables >/dev/null && iptables -S INPUT 2>/dev/null | grep -q -- '-j REJECT'; then
@@ -146,7 +172,8 @@ fi
 systemctl enable iridium-proxy
 # restart, not just start: on an update the old process must stop first or the port is still taken
 systemctl restart iridium-proxy
-systemctl restart caddy
+# Reload, not restart: a restart would drop every open WebSocket on other sites served by Caddy.
+systemctl reload caddy 2>/dev/null || systemctl restart caddy
 
 # Do not say "Done" until the service really answers.
 echo "Waiting for the service to answer..."
