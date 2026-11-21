@@ -119,7 +119,9 @@ if command -v iptables >/dev/null && iptables -S INPUT 2>/dev/null | grep -q -- 
 fi
 
 systemctl daemon-reload
-systemctl enable --now iridium-proxy
+systemctl enable iridium-proxy
+# restart, not just start: on an update the old process must stop first or the port is still taken
+systemctl restart iridium-proxy
 systemctl restart caddy
 
 echo
