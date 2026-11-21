@@ -36,6 +36,8 @@ export class OriginPool {
   readonly https: HttpsAgent;
   readonly stats: PoolStats = { created: 0, reused: 0, closed: 0, failed: 0, active: 0 };
   #dns: DnsCache | undefined;
+  /** The address the lookup last handed out for each host, so a failed connect can penalise it. */
+  #chosen = new Map<string, string>();
 
   constructor(options: PoolOptions) {
     this.#dns = options.dns;
@@ -43,6 +45,10 @@ export class OriginPool {
     const lookup: LookupFunction = (hostname, opts, cb) => {
       policy
         .resolve(hostname)
+        .then((a) => {
+          this.#chosen.set(hostname.toLowerCase(), a.address);
+          return a;
+        })
         .then((a) =>
           opts.all
             ? cb(null, [{ address: a.address, family: a.family }])
@@ -69,6 +75,14 @@ export class OriginPool {
 
   /** Count socket creation, reuse and closure for one outgoing request. */
   track(req: ClientRequest, host: string): void {
+    // A connect that fails (no route, refused, timed out) pushes that address to the back of the
+    // DNS answer list, so the next attempt tries another one.
+    req.once('error', (error: NodeJS.ErrnoException) => {
+      if (['ENETUNREACH', 'EHOSTUNREACH', 'ECONNREFUSED', 'ETIMEDOUT'].includes(error.code ?? '')) {
+        const address = this.#chosen.get(host.toLowerCase());
+        if (address) this.#dns?.penalize(host, address);
+      }
+    });
     req.once('socket', (socket) => {
       if (req.reusedSocket) {
         this.stats.reused += 1;

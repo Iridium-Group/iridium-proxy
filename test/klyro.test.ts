@@ -437,6 +437,52 @@ describe('klyro: connections', () => {
   });
 });
 
+describe('klyro: connection failures', () => {
+  it('tries another address when the first cannot be reached', async () => {
+    const origin = await startOrigin();
+    // 127.0.0.2 is a valid loopback address with nothing listening, so it refuses at once.
+    const h = await start(origin, {
+      lookup: async () => [
+        { address: '127.0.0.2', family: 4 as const },
+        { address: '127.0.0.1', family: 4 as const },
+      ],
+    });
+    try {
+      const s = await h.session(`http://two-addresses.test:${origin.port}/`);
+      const res = await fetch(s.path('/static.html'));
+      assert.equal(res.status, 200, 'the second attempt should succeed on the other address');
+      assert.ok((await res.text()).includes('hello'));
+    } finally {
+      await h.proxy.close();
+      await origin.close();
+    }
+  });
+
+  it('logs the failure reason and error code, and nothing sensitive', async () => {
+    const origin = await startOrigin();
+    const h = await start(origin);
+    lines.length = 0;
+    try {
+      const s = await h.session(`http://origin.test:1/`); // nothing listens on port 1
+      const res = await fetch(
+        `${h.base}/k/${s.sid}/http/origin.test:1/secret/path?token=SECRETVALUE`,
+      );
+      assert.equal(res.status, 502);
+      const log = lines
+        .map((l) => JSON.parse(l))
+        .find((l) => l.message === 'request' && l.status === 502);
+      assert.ok(log, 'expected a request log line');
+      assert.equal(log.reason, 'connection_refused');
+      assert.equal(log.errno, 'ECONNREFUSED');
+      assert.ok(!lines.join('\n').includes('SECRETVALUE'));
+      assert.ok(!lines.join('\n').includes('/secret/path'));
+    } finally {
+      await h.proxy.close();
+      await origin.close();
+    }
+  });
+});
+
 describe('klyro: limits and lifecycle', () => {
   it('rejects oversized request bodies and cuts off oversized responses', async () => {
     const origin = await startOrigin();

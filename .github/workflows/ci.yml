@@ -37,7 +37,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Unit tests
-        run: node --test --test-timeout=30000 test/klyro-transform.test.ts test/klyro-config.test.ts test/usage.test.ts
+        run: node --test --test-timeout=30000 test/klyro-transform.test.ts test/klyro-config.test.ts test/klyro-dns.test.ts test/usage.test.ts
       - name: Integration tests
         run: |
           node --test --test-timeout=60000 --test-skip-pattern='klyro: security' test/klyro.test.ts test/proxy.test.ts

@@ -126,6 +126,8 @@ function filterEncodings(value: string | undefined): string {
 class HttpFailure extends Error {
   readonly status: number;
   readonly reason: string;
+  /** The underlying network error code (ECONNREFUSED, ENETUNREACH, ...), for retries and logs. */
+  errno: string | undefined;
   constructor(status: number, reason: string, message: string) {
     super(message);
     this.status = status;
@@ -359,7 +361,7 @@ export function createKlyro(options: KlyroOptions): Klyro {
     return out;
   }
 
-  function sendUpstream(
+  function sendUpstreamOnce(
     target: URL,
     method: string,
     headers: OutgoingHttpHeaders,
@@ -389,7 +391,10 @@ export function createKlyro(options: KlyroOptions): Klyro {
       req.once('error', (error) => {
         clearTimeout(timer);
         pool.stats.failed += 1;
-        reject(error instanceof HttpFailure ? error : mapNetworkError(error));
+        if (error instanceof HttpFailure) return reject(error);
+        const failure = mapNetworkError(error);
+        failure.errno = (error as NodeJS.ErrnoException).code;
+        reject(failure);
       });
       if (!body) return void req.end();
       let seen = 0;
@@ -405,6 +410,29 @@ export function createKlyro(options: KlyroOptions): Klyro {
         req.destroy(e instanceof Error ? e : new Error(String(e))),
       );
     });
+  }
+
+  const RETRYABLE = new Set(['ENETUNREACH', 'EHOSTUNREACH', 'ECONNREFUSED', 'ETIMEDOUT']);
+
+  /**
+   * Send a request, and if the connection could not be made, try once more. The pool pushes a
+   * failing address to the back of the DNS list, so the second attempt uses a different one.
+   * Only for requests with no body: a body that was already read cannot be sent again.
+   */
+  async function sendUpstream(
+    target: URL,
+    method: string,
+    headers: OutgoingHttpHeaders,
+    body: IncomingMessage | null,
+  ): Promise<IncomingMessage> {
+    try {
+      return await sendUpstreamOnce(target, method, headers, body);
+    } catch (error) {
+      const code = error instanceof HttpFailure ? (error.errno ?? '') : '';
+      if (body === null && RETRYABLE.has(code))
+        return sendUpstreamOnce(target, method, headers, null);
+      throw error;
+    }
   }
 
   function mapNetworkError(error: Error): HttpFailure {
@@ -827,6 +855,7 @@ export function createKlyro(options: KlyroOptions): Klyro {
     }
     let route = 'error';
     let status = 500;
+    let failure: HttpFailure | null = null;
     try {
       ({ route, status } = await proxyRequest(req, res, id, started));
     } catch (error) {
@@ -837,6 +866,7 @@ export function createKlyro(options: KlyroOptions): Klyro {
             ? error
             : mapNetworkError(error instanceof Error ? error : new Error(String(error)));
       status = f.status;
+      failure = f;
       countFailed(1, { reason: f.reason });
       if (!res.destroyed)
         errorPage(
@@ -860,6 +890,10 @@ export function createKlyro(options: KlyroOptions): Klyro {
         status,
         route,
         ms: Math.round(seconds * 1000),
+        // Why a request failed: a fixed reason and the network error code. Never URLs or headers.
+        ...(failure
+          ? { reason: failure.reason, ...(failure.errno ? { errno: failure.errno } : {}) }
+          : {}),
       });
     }
     return true;
