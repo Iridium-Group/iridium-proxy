@@ -126,6 +126,20 @@ systemctl enable iridium-proxy
 systemctl restart iridium-proxy
 systemctl restart caddy
 
+# Do not say "Done" until the service really answers.
+echo "Waiting for the service to answer..."
+ready=""
+for _ in $(seq 1 30); do
+  if curl -fsS http://127.0.0.1:8080/ready >/dev/null 2>&1; then ready=1; break; fi
+  sleep 1
+done
+if [ -z "$ready" ]; then
+  echo "The service did not become ready within 30 seconds. Recent log:" >&2
+  journalctl -u iridium-proxy -n 25 --no-pager >&2
+  exit 1
+fi
+echo "Service is ready: $(curl -s http://127.0.0.1:8080/health)"
+
 echo
 echo "Done. Open https://$DOMAIN/ (the first HTTPS certificate can take a minute)."
 echo "Health: https://$DOMAIN/healthz   Logs: journalctl -u iridium-proxy -f"
