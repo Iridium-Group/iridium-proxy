@@ -12,3 +12,13 @@ coverage/
 /web/public/LICENSE.txt
 .iridium-usage.json
 bench/results/quick.json
+
+# Never commit keys or secrets
+*.key
+*.pem
+*.p12
+id_rsa*
+id_ed25519*
+.env
+.env.*
+!.env.example
