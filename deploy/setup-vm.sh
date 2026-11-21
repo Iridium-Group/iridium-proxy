@@ -121,6 +121,18 @@ if command -v iptables >/dev/null && iptables -S INPUT 2>/dev/null | grep -q -- 
 fi
 
 systemctl daemon-reload
+# Stop our own service first, then make sure nothing else is holding the port. An old copy of the
+# proxy (or anything else) on 8080 makes the new service crash-loop while the old one keeps answering.
+systemctl stop iridium-proxy 2>/dev/null || true
+if command -v ss >/dev/null; then
+  holder=$(ss -H -tlnp 'sport = :8080' 2>/dev/null || true)
+  if [ -n "$holder" ]; then
+    echo "Port 8080 is already in use by something that is not this service:" >&2
+    echo "$holder" >&2
+    echo "Stop that process (see the pid above, or: sudo ss -tlnp | grep 8080), then run this again." >&2
+    exit 1
+  fi
+fi
 systemctl enable iridium-proxy
 # restart, not just start: on an update the old process must stop first or the port is still taken
 systemctl restart iridium-proxy
