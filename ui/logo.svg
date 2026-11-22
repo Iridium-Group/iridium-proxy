@@ -1,28 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Klyro">
-  <defs>
-    <linearGradient id="bg" x1="12" y1="4" x2="116" y2="124" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#8e86ff"/>
-      <stop offset=".5" stop-color="#5f4ff0"/>
-      <stop offset="1" stop-color="#3426c4"/>
-    </linearGradient>
-    <linearGradient id="gloss" x1="0" y1="4" x2="0" y2="124" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff" stop-opacity=".30"/>
-      <stop offset=".48" stop-color="#fff" stop-opacity="0"/>
-    </linearGradient>
-    <linearGradient id="k" x1="0" y1="28" x2="0" y2="100" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff"/>
-      <stop offset="1" stop-color="#e4e2ff"/>
-    </linearGradient>
-    <filter id="drop" x="-25%" y="-25%" width="150%" height="160%">
-      <feDropShadow dx="0" dy="3.5" stdDeviation="3" flood-color="#150c5e" flood-opacity=".5"/>
-    </filter>
-  </defs>
-  <rect x="4" y="4" width="120" height="120" rx="32" fill="url(#bg)"/>
-  <rect x="4" y="4" width="120" height="120" rx="32" fill="url(#gloss)"/>
-  <rect x="4.75" y="4.75" width="118.5" height="118.5" rx="31.25" fill="none" stroke="#fff" stroke-opacity=".28" stroke-width="1.5"/>
-  <g fill="url(#k)" filter="url(#drop)">
-    <path d="M36 28h14v72H36z"/>
-    <path d="M40.6 60.1 76.1 28h23.8L51.4 71.9z"/>
-    <path d="M40.6 67.9 76.1 100h23.8L51.4 56.1z"/>
-  </g>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#17191B"/>
+  <rect x="4.75" y="4.75" width="118.5" height="118.5" rx="27.25" fill="none" stroke="#303438" stroke-width="1.5"/>
+  <path d="M36 28h14v72H36z" fill="#F5F5F1"/>
+  <path d="M40.6 60.1 76.1 28h23.8L51.4 71.9z" fill="#F5F5F1"/>
+  <path d="M40.6 67.9 76.1 100h23.8L51.4 56.1z" fill="#B8D98A"/>
 </svg>

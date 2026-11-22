@@ -227,7 +227,7 @@ describe('klyro native mode in a browser', () => {
     await page.locator('#favorites .fav').click();
     await page.frameLocator('iframe.view').locator('h1').waitFor({ timeout: 20_000 });
     await page.click('#star');
-    assert.equal((await page.getAttribute('#star', 'class')) ?? '', '');
+    assert.doesNotMatch((await page.getAttribute('#star', 'class')) ?? '', /\bon\b/);
     await page.click('#home');
     assert.equal(await page.locator('#favorites .fav').count(), 0);
     await page.close();
@@ -255,6 +255,49 @@ describe('klyro native mode in a browser', () => {
       localStorage.getItem('klyro.closed'),
     ]);
     assert.equal(left[0], '[]');
+    await page.close();
+  });
+
+  it('browser shell: pin and group tabs, and get them back after a reload', async () => {
+    const page = await browser.newPage();
+    await page.goto(`${base}/`);
+    const url = (n) => `http://127.0.0.1:${origin.port}/static.html?n=${n}`;
+    for (const n of [1, 2, 3]) {
+      if (n > 1) await page.click('#newtab');
+      await page.fill('#url', url(n));
+      await page.press('#url', 'Enter');
+      await page.frameLocator('iframe.view').last().locator('h1').waitFor({ timeout: 20_000 });
+    }
+    // group the second and third tab
+    await page.locator('#tabs .tab').nth(1).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'New group with this tab' }).click();
+    await page.keyboard.type('Reading');
+    await page.keyboard.press('Enter');
+    await page.locator('#tabs .tab').nth(2).click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Reading' }).click();
+    // pin the first tab
+    await page.locator('#tabs .tab').first().click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Pin tab' }).click();
+    assert.equal(await page.locator('#pinned .tab').count(), 1);
+    assert.equal(await page.locator('.group .gname').textContent(), 'Reading');
+    assert.equal(await page.locator('.group .tab').count(), 2);
+
+    await page.waitForFunction(
+      () => JSON.parse(localStorage.getItem('klyro.tabs') ?? '{}').groups?.length === 1,
+      undefined,
+      { timeout: 5_000 },
+    );
+    await page.reload();
+    assert.equal(await page.locator('#pinned .tab').count(), 1, 'the pinned tab came back');
+    assert.equal(await page.locator('.group .gname').textContent(), 'Reading');
+    assert.equal(await page.locator('.group .tab').count(), 2, 'the group kept its tabs');
+
+    // collapsing hides the group's tabs except the selected one; ungrouping dissolves it
+    await page.locator('.ghead').click();
+    assert.equal(await page.locator('.group.collapsed').count(), 1);
+    await page.locator('.ghead').click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Ungroup' }).click();
+    assert.equal(await page.locator('.group').count(), 0);
     await page.close();
   });
 
