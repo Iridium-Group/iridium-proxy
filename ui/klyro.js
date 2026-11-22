@@ -12,11 +12,15 @@ const pinnedEl = $('pinned');
 const views = $('views');
 const homeView = $('homeview');
 const address = $('address');
+const bar = $('bar');
+const stripEl = $('strip');
+const chromeEl = $('chrome');
+const starBtn = document.getElementById('star');
+const suggestEl = $('suggest');
 const ctx = $('ctx');
 const FAV = 'klyro.favorites';
 const TABS = 'klyro.tabs';
 const CLOSED = 'klyro.closed';
-const UI = 'klyro.ui';
 const MAX_TABS = 60;
 
 const store = {
@@ -147,7 +151,6 @@ function reopenClosed() {
 
 function select(tab) {
   active = tab;
-  closeDrawer();
   if (tab.pendingUrl && !tab.frame) {
     // A tab restored from the last visit: load it now that it is being shown.
     const url = tab.pendingUrl;
@@ -157,6 +160,7 @@ function select(tab) {
   for (const t of tabs) if (t.frame) t.frame.hidden = t !== tab;
   homeView.hidden = !!tab.frame;
   renderTabs();
+  tab.button?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   syncBar();
   if (!tab.frame) $('url').focus({ preventScroll: true });
   saveTabs();
@@ -209,6 +213,8 @@ function tabEl(tab) {
     closeTab(tab);
   });
   el.append(badge(tab), t, more, x);
+  // The selected tab is the address bar: it expands and the others stay small (Safari's compact bar).
+  if (tab === active && !tab.pinned) el.insertBefore(bar, more);
   el.addEventListener('click', () => select(tab));
   el.addEventListener('keydown', (e) => {
     if (e.target === el && (e.key === 'Enter' || e.key === ' ')) {
@@ -272,6 +278,7 @@ function groupEl(g, members) {
 }
 
 function renderTabs() {
+  stripEl.append(bar); // keep it alive while the old tabs are discarded
   pinnedEl.replaceChildren();
   tabsEl.replaceChildren();
   for (const t of tabs) if (t.pinned) pinnedEl.append(tabEl(t));
@@ -291,6 +298,7 @@ function renderTabs() {
       );
     }
   }
+  if (active?.pinned) stripEl.insertBefore(bar, tabsEl); // no tab to host it
 }
 
 function renameGroup(g, head) {
@@ -388,14 +396,16 @@ function wireDrag(el, tab) {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', tab.url || '');
     el.classList.add('dragging');
+    document.body.classList.add('dragging');
   });
   el.addEventListener('dragend', () => {
     drag = null;
+    document.body.classList.remove('dragging');
     renderTabs();
   });
   const side = (e) => {
     const r = el.getBoundingClientRect();
-    return tab.pinned ? e.clientX < r.left + r.width / 2 : e.clientY < r.top + r.height / 2;
+    return e.clientX < r.left + r.width / 2;
   };
   el.addEventListener('dragover', (e) => {
     if (!drag || drag === tab) return;
@@ -615,10 +625,10 @@ function syncBar() {
   const framed = !!active?.frame;
   if (document.activeElement !== address) address.value = framed ? active.url : '';
   $('back').disabled = $('fwd').disabled = $('reload').disabled = !framed;
-  $('star').disabled = !framed;
+  starBtn.disabled = !framed;
   const starred = framed && store.get(FAV, []).some((f) => f.url === active.url);
-  $('star').classList.toggle('on', starred);
-  $('star').title = starred ? 'Remove from favorites' : 'Add to favorites';
+  starBtn.classList.toggle('on', starred);
+  starBtn.title = starred ? 'Remove from favorites' : 'Add to favorites';
   document.title = framed && active.title ? `${active.title} · Klyro` : 'Klyro';
 }
 
@@ -670,12 +680,9 @@ $('home').addEventListener('click', () => {
   select(active);
 });
 $('newtab').addEventListener('click', () => newTab());
-$('newgroup').addEventListener('click', () => {
-  if (active) newGroupWith(active);
-});
 
 // ---------- address bar suggestions ----------
-const suggest = $('suggest');
+const suggest = suggestEl;
 let sugItems = [];
 let sugIndex = -1;
 
@@ -706,6 +713,14 @@ function paintSuggest() {
     suggest.append(li);
   });
   suggest.hidden = sugItems.length === 0;
+  if (!suggest.hidden) {
+    // Sit under the address bar, as wide as it is (at least 320px) and inside the window.
+    const c = chromeEl.getBoundingClientRect();
+    const r = bar.getBoundingClientRect();
+    const width = Math.min(Math.max(r.width, 320), innerWidth - 16);
+    suggest.style.width = width + 'px';
+    suggest.style.left = Math.max(8, Math.min(r.left - c.left, innerWidth - width - 8)) + 'px';
+  }
 }
 function updateSuggest() {
   const q = address.value.trim();
@@ -753,7 +768,7 @@ address.addEventListener('keydown', (e) => {
     address.blur();
   }
 });
-$('bar').addEventListener('submit', (e) => {
+bar.addEventListener('submit', (e) => {
   e.preventDefault();
   const pick = sugItems[sugIndex];
   if (pick) pick.run();
@@ -761,27 +776,6 @@ $('bar').addEventListener('submit', (e) => {
   closeSuggest();
   address.blur();
 });
-
-// ---------- sidebar chrome ----------
-const ui = store.get(UI, {});
-function setCompact(on) {
-  document.body.classList.toggle('compact', on);
-  store.set(UI, { ...store.get(UI, {}), compact: on });
-}
-if (ui.compact) document.body.classList.add('compact');
-$('collapse').addEventListener('click', () =>
-  setCompact(!document.body.classList.contains('compact')),
-);
-function openDrawer() {
-  document.body.classList.add('drawer');
-  $('scrim').hidden = false;
-}
-function closeDrawer() {
-  document.body.classList.remove('drawer');
-  $('scrim').hidden = true;
-}
-$('menu').addEventListener('click', openDrawer);
-$('scrim').addEventListener('click', closeDrawer);
 
 window.addEventListener('keydown', (e) => {
   const mod = e.ctrlKey || e.metaKey;
@@ -799,9 +793,6 @@ window.addEventListener('keydown', (e) => {
   } else if (mod && k === 'w' && active) {
     e.preventDefault();
     closeTab(active);
-  } else if (mod && k === 'b') {
-    e.preventDefault();
-    setCompact(!document.body.classList.contains('compact'));
   } else if (e.altKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
     e.preventDefault();
     const i = tabs.indexOf(active);
@@ -908,7 +899,7 @@ function renderFavorites() {
   }
 }
 
-$('star').addEventListener('click', () => {
+starBtn.addEventListener('click', () => {
   if (!active?.url) return;
   const favs = store.get(FAV, []);
   const i = favs.findIndex((f) => f.url === active.url);

@@ -12,93 +12,59 @@
     <link rel="stylesheet" href="klyro.css" />
   </head>
   <body>
-    <aside id="side" aria-label="Tabs">
-      <div class="brand">
-        <img src="logo.svg" alt="" width="24" height="24" />
-        <span class="word">Klyro</span>
-        <button
-          type="button"
-          id="collapse"
-          class="icon"
-          title="Collapse sidebar (Ctrl+B)"
-          aria-label="Collapse sidebar"
-        >
-          <svg viewBox="0 0 24 24">
-            <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
-            <path d="M9.5 5v14" />
-          </svg>
-        </button>
-      </div>
-
-      <button type="button" id="newtab" class="row" title="New tab (Ctrl+T)" aria-label="New tab">
-        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
-        <span class="label">New tab</span>
-      </button>
-
-      <div id="pinned" class="pinned" aria-label="Pinned tabs"></div>
-      <div id="tabs" class="list" role="tablist" aria-label="Open tabs"></div>
-
-      <div class="foot">
-        <button type="button" id="newgroup" class="row slim" title="Put this tab in a new group">
-          <svg viewBox="0 0 24 24">
-            <path d="M4 8a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
-          </svg>
-          <span class="label">New group</span>
-        </button>
-        <nav class="links" aria-label="About">
-          <a href="https://github.com/Iridium-Group">Iridium Group</a>
-          <a href="https://github.com/Iridium-Group/iridium-proxy">GitHub</a>
-          <a href="https://github.com/Iridium-Group/iridium-proxy/blob/main/THIRD_PARTY.md"
-            >Credits</a
-          >
-          <a id="clear" href="#">Clear saved data</a>
-        </nav>
-      </div>
-    </aside>
-
-    <div id="scrim" hidden></div>
-
-    <div id="main">
-      <header id="chrome">
-        <button type="button" id="menu" class="icon" title="Tabs" aria-label="Show tabs">
-          <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
-        </button>
-        <button type="button" id="back" class="icon" title="Back" aria-label="Back">
-          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
-        </button>
-        <button type="button" id="fwd" class="icon" title="Forward" aria-label="Forward">
-          <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
-        </button>
-        <button type="button" id="reload" class="icon" title="Reload" aria-label="Reload">
-          <svg viewBox="0 0 24 24">
-            <path d="M20 12a8 8 0 1 1-2.6-5.9" />
-            <path d="M20 4v5h-5" />
-          </svg>
-        </button>
-        <form id="bar" autocomplete="off">
-          <input
-            id="address"
-            type="text"
-            inputmode="url"
-            spellcheck="false"
-            placeholder="Search or enter a URL"
-            aria-label="Address"
-            aria-controls="suggest"
-            aria-autocomplete="list"
-          />
-          <button
-            type="button"
-            id="star"
-            class="icon"
-            title="Add to favorites"
-            aria-label="Add to favorites"
-          >
+    <header id="chrome">
+      <div class="toolbar">
+        <div class="nav">
+          <button type="button" id="back" class="icon" title="Back" aria-label="Back">
+            <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+          </button>
+          <button type="button" id="fwd" class="icon" title="Forward" aria-label="Forward">
+            <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
+          </button>
+          <button type="button" id="reload" class="icon" title="Reload" aria-label="Reload">
             <svg viewBox="0 0 24 24">
-              <path d="M12 4l2.5 5.2 5.7.8-4.1 4 1 5.7L12 17l-5.1 2.7 1-5.7-4.1-4 5.7-.8z" />
+              <path d="M20 12a8 8 0 1 1-2.6-5.9" />
+              <path d="M20 4v5h-5" />
             </svg>
           </button>
-          <ul id="suggest" role="listbox" hidden></ul>
-        </form>
+        </div>
+        <div id="strip">
+          <div id="pinned" class="pinned" aria-label="Pinned tabs"></div>
+          <div id="tabs" class="list" role="tablist" aria-label="Open tabs"></div>
+          <form id="bar" autocomplete="off">
+            <input
+              id="address"
+              type="text"
+              inputmode="url"
+              spellcheck="false"
+              placeholder="Search or enter a URL"
+              aria-label="Address"
+              aria-controls="suggest"
+              aria-autocomplete="list"
+            />
+            <button
+              type="button"
+              id="star"
+              class="icon"
+              title="Add to favorites"
+              aria-label="Add to favorites"
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M12 4l2.5 5.2 5.7.8-4.1 4 1 5.7L12 17l-5.1 2.7 1-5.7-4.1-4 5.7-.8z" />
+              </svg>
+            </button>
+            <button type="submit" id="gobtn">Go</button>
+          </form>
+        </div>
+        <button
+          type="button"
+          id="newtab"
+          class="icon"
+          title="New tab (Ctrl+T)"
+          aria-label="New tab"
+        >
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+        </button>
         <button type="button" id="home" class="icon" title="New tab page" aria-label="New tab page">
           <svg viewBox="0 0 24 24">
             <rect x="4" y="4" width="7" height="7" rx="2" />
@@ -107,36 +73,44 @@
             <rect x="13" y="13" width="7" height="7" rx="2" />
           </svg>
         </button>
-      </header>
+      </div>
+      <ul id="suggest" role="listbox" hidden></ul>
+    </header>
 
-      <main id="views">
-        <section id="homeview">
-          <div class="hero">
-            <img class="mark" src="logo.svg" alt="" width="44" height="44" />
-            <h1>Klyro</h1>
-            <p class="tagline">A fast, private web proxy from Iridium Group.</p>
-          </div>
-          <form id="go" autocomplete="off">
-            <svg class="lens" viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="6.5" />
-              <path d="M16 16l4.5 4.5" />
-            </svg>
-            <input
-              id="url"
-              type="text"
-              inputmode="url"
-              spellcheck="false"
-              placeholder="Search the web or enter a URL"
-              aria-label="Search the web or enter a URL"
-              autofocus
-            />
-          </form>
-          <p id="note" role="status"></p>
-          <ul id="favorites" aria-label="Favorites"></ul>
-          <p class="fine">Sign-in pages are not supported. Klyro never handles passwords.</p>
-        </section>
-      </main>
-    </div>
+    <main id="views">
+      <section id="homeview">
+        <div class="hero">
+          <img class="mark" src="logo.svg" alt="" width="44" height="44" />
+          <h1>Klyro</h1>
+          <p class="tagline">A fast, private web proxy from Iridium Group.</p>
+        </div>
+        <form id="go" autocomplete="off">
+          <svg class="lens" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="M16 16l4.5 4.5" />
+          </svg>
+          <input
+            id="url"
+            type="text"
+            inputmode="url"
+            spellcheck="false"
+            placeholder="Search the web or enter a URL"
+            aria-label="Search the web or enter a URL"
+            autofocus
+          />
+        </form>
+        <p id="note" role="status"></p>
+        <ul id="favorites" aria-label="Favorites"></ul>
+        <p class="fine">Sign-in pages are not supported. Klyro never handles passwords.</p>
+      </section>
+    </main>
+
+    <footer id="foot">
+      <a href="https://github.com/Iridium-Group">Iridium Group</a>
+      <a href="https://github.com/Iridium-Group/iridium-proxy">GitHub</a>
+      <a href="https://github.com/Iridium-Group/iridium-proxy/blob/main/THIRD_PARTY.md">Credits</a>
+      <a id="clear" href="#">Clear saved data</a>
+    </footer>
 
     <div id="ctx" role="menu" hidden></div>
     <script src="klyro.js"></script>
