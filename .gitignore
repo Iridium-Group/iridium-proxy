@@ -8,6 +8,7 @@ coverage/
 /web/public/scram/
 /web/public/baremux/
 /web/public/libcurl/
+/web/public/config.js
 /web/public/THIRD_PARTY_LICENSES.txt
 /web/public/LICENSE.txt
 .iridium-usage.json

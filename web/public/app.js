@@ -41,7 +41,10 @@ async function setup() {
   await navigator.serviceWorker.register('/sw.js');
   await navigator.serviceWorker.ready;
   await ready;
-  const wisp = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/wisp/`;
+  // A static host (for example Vercel) cannot run Wisp, so config.js can point at a separate server.
+  const wisp =
+    window.IRIDIUM_WISP ||
+    `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/wisp/`;
   await connection.setTransport('/libcurl/index.mjs', [{ websocket: wisp }]);
 }
 

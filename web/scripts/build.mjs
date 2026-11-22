@@ -1,6 +1,6 @@
 // Copy the browser-side files of Scramjet, bare-mux and the libcurl transport into public/.
 // Usage: node scripts/build.mjs
-import { cp, mkdir, rm } from 'node:fs/promises';
+import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,3 +23,15 @@ for (const [name, from, to] of targets) {
   });
   console.log(`copied ${name} -> public/${to}`);
 }
+
+// WISP_URL (for example wss://proxy.example.com/wisp/) points the client at a separate Wisp server.
+// Leave it unset when the same server serves the page and Wisp.
+const wisp = process.env.WISP_URL?.trim() ?? '';
+if (wisp && !/^wss?:\/\/[^\s"'<>\\]+$/.test(wisp)) {
+  throw new Error('WISP_URL must be a ws:// or wss:// address');
+}
+await writeFile(
+  join(root, 'public', 'config.js'),
+  `window.IRIDIUM_WISP = ${JSON.stringify(wisp)};\n`,
+);
+console.log(`wrote public/config.js (${wisp || 'same-host Wisp'})`);
