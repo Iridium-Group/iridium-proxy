@@ -301,6 +301,42 @@ describe('klyro native mode in a browser', () => {
     await page.close();
   });
 
+  it('browser shell: you can click into the address bar and type, and the field keeps focus', async () => {
+    const page = await browser.newPage();
+    await page.goto(`${base}/`);
+    const url = `http://127.0.0.1:${origin.port}/static.html`;
+    // a real mouse click on the field, then real key presses (not fill())
+    await page.click('#address');
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.id),
+      'address',
+      'the click focused it',
+    );
+    await page.keyboard.type(url, { delay: 5 });
+    assert.equal(await page.inputValue('#address'), url, 'every key landed in the field');
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.id),
+      'address',
+      'focus was kept',
+    );
+    await page.keyboard.press('Enter');
+    await page.frameLocator('iframe.view').locator('h1').waitFor({ timeout: 20_000 });
+
+    // and again on a tab that is already showing a page: click, select all, type a new address
+    await page.click('#address');
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.type(url + '?second=1', { delay: 5 });
+    assert.equal(await page.inputValue('#address'), url + '?second=1');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(
+      () => document.getElementById('address').value.endsWith('?second=1'),
+      undefined,
+      { timeout: 10_000 },
+    );
+    assert.equal(await page.locator('.tab').count(), 1, 'it reused the tab');
+    await page.close();
+  });
+
   it('shows the home page', async () => {
     const page = await browser.newPage();
     await page.goto(`${base}/`);

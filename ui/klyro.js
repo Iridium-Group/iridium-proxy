@@ -215,7 +215,12 @@ function tabEl(tab) {
   el.append(badge(tab), t, more, x);
   // The selected tab is the address bar: it expands and the others stay small (Safari's compact bar).
   if (tab === active && !tab.pinned) el.insertBefore(bar, more);
-  el.addEventListener('click', () => select(tab));
+  el.addEventListener('click', (e) => {
+    // Clicks inside the address bar (the selected tab hosts it) belong to the field: selecting the
+    // tab again would redraw the row and take focus away from what is being typed.
+    if (tab === active && e.target.closest('#bar')) return;
+    if (tab !== active) select(tab);
+  });
   el.addEventListener('keydown', (e) => {
     if (e.target === el && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
@@ -390,7 +395,9 @@ function moveToGroup(src, g) {
 // ---------- drag and drop ----------
 let drag = null;
 function wireDrag(el, tab) {
-  el.draggable = true;
+  // The selected tab holds the address field, and a draggable parent stops a field from taking a
+  // text cursor in some browsers, so it is not draggable; every other tab is.
+  el.draggable = !(tab === active && !tab.pinned);
   el.addEventListener('dragstart', (e) => {
     drag = tab;
     e.dataTransfer.effectAllowed = 'move';
