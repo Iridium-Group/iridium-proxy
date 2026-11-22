@@ -13,7 +13,6 @@ const views = $('views');
 const homeView = $('homeview');
 const address = $('address');
 const bar = $('bar');
-const stripEl = $('strip');
 const chromeEl = $('chrome');
 const starBtn = document.getElementById('star');
 const suggestEl = $('suggest');
@@ -106,6 +105,11 @@ function makeTab(extra = {}) {
     pinned: false,
     group: null,
     loading: false,
+    scroll: 0, // last known scroll position of the page (px)
+    restore: 0, // scroll position to go back to once the page has loaded
+    leftAt: Date.now(), // when the tab was last the selected one
+    asleep: false,
+    proxyPath: '', // the page's current /k/<session>/... address, kept in memory only
     ...extra,
   };
 }
@@ -150,7 +154,13 @@ function reopenClosed() {
 }
 
 function select(tab) {
+  const prev = active;
+  if (prev && prev !== tab) {
+    captureScroll(prev);
+    prev.leftAt = Date.now();
+  }
   active = tab;
+  if (tab.asleep && !tab.frame) return void wake(tab);
   if (tab.pendingUrl && !tab.frame) {
     // A tab restored from the last visit: load it now that it is being shown.
     const url = tab.pendingUrl;
@@ -185,11 +195,15 @@ function badge(tab) {
 
 function tabEl(tab) {
   const el = document.createElement('div');
-  el.className = 'tab' + (tab.pinned ? ' pin' : '') + (tab.loading ? ' loading' : '');
+  el.className =
+    'tab' +
+    (tab.pinned ? ' pin' : '') +
+    (tab.loading ? ' loading' : '') +
+    (tab.asleep ? ' sleeping' : '');
   el.setAttribute('role', 'tab');
   el.tabIndex = 0;
   el.setAttribute('aria-selected', String(tab === active));
-  el.title = tab.url || tab.title;
+  el.title = tab.asleep ? `${tab.title} (asleep: click to wake)` : tab.url || tab.title;
   const t = document.createElement('span');
   t.className = 't' + (tab.url || tab.pendingUrl ? '' : ' dim');
   t.textContent = tab.title;
@@ -213,12 +227,7 @@ function tabEl(tab) {
     closeTab(tab);
   });
   el.append(badge(tab), t, more, x);
-  // The selected tab is the address bar: it expands and the others stay small (Safari's compact bar).
-  if (tab === active && !tab.pinned) el.insertBefore(bar, more);
-  el.addEventListener('click', (e) => {
-    // Clicks inside the address bar (the selected tab hosts it) belong to the field: selecting the
-    // tab again would redraw the row and take focus away from what is being typed.
-    if (tab === active && e.target.closest('#bar')) return;
+  el.addEventListener('click', () => {
     if (tab !== active) select(tab);
   });
   el.addEventListener('keydown', (e) => {
@@ -283,7 +292,6 @@ function groupEl(g, members) {
 }
 
 function renderTabs() {
-  stripEl.append(bar); // keep it alive while the old tabs are discarded
   pinnedEl.replaceChildren();
   tabsEl.replaceChildren();
   for (const t of tabs) if (t.pinned) pinnedEl.append(tabEl(t));
@@ -303,7 +311,6 @@ function renderTabs() {
       );
     }
   }
-  if (active?.pinned) stripEl.insertBefore(bar, tabsEl); // no tab to host it
 }
 
 function renameGroup(g, head) {
@@ -395,9 +402,7 @@ function moveToGroup(src, g) {
 // ---------- drag and drop ----------
 let drag = null;
 function wireDrag(el, tab) {
-  // The selected tab holds the address field, and a draggable parent stops a field from taking a
-  // text cursor in some browsers, so it is not draggable; every other tab is.
-  el.draggable = !(tab === active && !tab.pinned);
+  el.draggable = true;
   el.addEventListener('dragstart', (e) => {
     drag = tab;
     e.dataTransfer.effectAllowed = 'move';
@@ -521,6 +526,7 @@ function tabMenu(tab, x, y) {
       label: 'Duplicate',
       run: () => newTab(tab.url || tab.pendingUrl, { after: tab, group: tab.group, pinned: false }),
     });
+  if (tab.frame && tab !== active) items.push({ label: 'Put to sleep', run: () => sleepTab(tab) });
   items.push({
     label: 'Close other tabs',
     run: () => {
@@ -575,25 +581,108 @@ function groupMenu(g, head, x, y) {
 }
 
 // ---------- navigation ----------
-function open(tab, addr) {
-  if (!tab.frame) {
-    const f = document.createElement('iframe');
-    f.className = 'view';
-    f.title = 'Page';
-    f.addEventListener('load', () => {
-      tab.loading = false;
-      refresh(tab);
-      tab.button?.classList.remove('loading');
-    });
-    views.append(f);
-    tab.frame = f;
-  }
+function ensureFrame(tab) {
+  if (tab.frame) return;
+  const f = document.createElement('iframe');
+  f.className = 'view';
+  f.title = 'Page';
+  f.addEventListener('load', () => {
+    tab.loading = false;
+    refresh(tab);
+    tab.button?.classList.remove('loading');
+    restoreScroll(tab);
+  });
+  views.append(f);
+  tab.frame = f;
+}
+
+/** Open an address in a tab. `path` is a proxied /k/<session>/... address to go back to as it was. */
+function open(tab, addr, path) {
+  ensureFrame(tab);
   tab.title = 'Loading…';
   tab.url = addr;
   tab.loading = true;
+  tab.asleep = false;
+  tab.scroll = path ? tab.scroll : tab.restore || 0;
   // /klyro/go opens a session and redirects to the proxied address.
-  tab.frame.src = '/klyro/go?u=' + encodeURIComponent(addr);
+  tab.frame.src = path || '/klyro/go?u=' + encodeURIComponent(addr);
   select(tab);
+}
+
+// ---------- tab cache: scroll position and sleeping tabs ----------
+// Scroll position is remembered per tab, also across a reload. A tab nobody has looked at for a while
+// goes to sleep: its page is unloaded to free memory, but its address, title and scroll position stay,
+// and clicking it brings the page back where it was. Set localStorage "klyro.sleepMinutes" to change
+// the 15 minutes (0 means never). A tab wakes back into its old session only while the server still
+// keeps it (30 minutes idle by default); after that it starts a fresh one, so a login may be lost.
+const SLEEP_MS = (() => {
+  const ms = Number(store.get('klyro.sleepMs', 0)); // finer control, mostly for tests
+  if (Number.isFinite(ms) && ms > 0) return ms;
+  const min = Number(store.get('klyro.sleepMinutes', 15));
+  return Number.isFinite(min) && min > 0 ? min * 60_000 : 0;
+})();
+const KEEP_SESSION_MS = 25 * 60_000;
+const cleanScroll = (n) => (Number.isFinite(n) && n > 0 ? Math.min(Math.round(n), 10_000_000) : 0);
+
+/** Record where the page is scrolled to and its proxied address (same-origin frame, so this works). */
+function captureScroll(tab) {
+  if (!tab.frame || tab.restore) return; // while a saved position is still being applied, keep it
+  try {
+    const w = tab.frame.contentWindow;
+    tab.scroll = cleanScroll(w.scrollY);
+    if (upstreamOf(w.location.pathname, w.location.search))
+      tab.proxyPath = w.location.pathname + w.location.search;
+  } catch {
+    /* the frame is mid-navigation */
+  }
+}
+
+/** Put the saved scroll position back once the page has loaded (pages grow after load, so try again). */
+function restoreScroll(tab) {
+  const y = tab.restore;
+  if (!(y > 0)) return;
+  for (const delay of [0, 250, 800]) {
+    setTimeout(() => {
+      try {
+        const w = tab.frame?.contentWindow;
+        if (w && w.scrollY < y - 2) w.scrollTo(0, y);
+      } catch {
+        /* ignore */
+      }
+    }, delay);
+  }
+  setTimeout(() => {
+    if (tab.restore === y) tab.restore = 0;
+  }, 1100);
+}
+
+function sleepTab(tab) {
+  if (!tab.frame || tab === active) return;
+  tab.asleep = true;
+  tab.frame.remove();
+  tab.frame = null;
+  tab.loading = false;
+  renderTabs();
+  saveTabs();
+}
+
+function wake(tab) {
+  tab.asleep = false;
+  tab.restore = tab.scroll || 0;
+  const sameSession = tab.proxyPath && Date.now() - tab.leftAt < KEEP_SESSION_MS;
+  if (sameSession) open(tab, tab.url, tab.proxyPath);
+  else open(tab, tab.url);
+}
+
+if (SLEEP_MS) {
+  setInterval(
+    () => {
+      for (const t of [...tabs]) {
+        if (t !== active && t.frame && !t.loading && Date.now() - t.leftAt > SLEEP_MS) sleepTab(t);
+      }
+    },
+    Math.min(30_000, Math.max(500, SLEEP_MS / 2)),
+  );
 }
 
 /** Read the URL and title from a tab's page (same-origin, so this is allowed). */
@@ -612,6 +701,7 @@ function refresh(tab) {
   } catch {
     /* the frame is mid-navigation */
   }
+  if (tab === active) captureScroll(tab);
   if (tab === active) syncBar();
   const el = tab.button;
   if (el) {
@@ -647,7 +737,9 @@ function go(text) {
   } catch {
     return false;
   }
-  open(active ?? newTab(), addr);
+  const tab = active ?? newTab();
+  tab.restore = 0;
+  open(tab, addr);
   return true;
 }
 
@@ -683,7 +775,16 @@ $('reload').addEventListener('click', () => {
 $('home').addEventListener('click', () => {
   if (!active) return;
   active.frame?.remove();
-  Object.assign(active, { frame: null, url: '', title: 'New tab', loading: false });
+  Object.assign(active, {
+    frame: null,
+    url: '',
+    title: 'New tab',
+    loading: false,
+    scroll: 0,
+    restore: 0,
+    proxyPath: '',
+    asleep: false,
+  });
   select(active);
 });
 $('newtab').addEventListener('click', () => newTab());
@@ -835,10 +936,14 @@ function writeTabs() {
       title: t.title && t.title !== 'Loading…' ? t.title : '',
       pinned: t.pinned,
       group: t.group,
+      scroll: cleanScroll(t.restore || t.scroll),
     })),
   });
 }
-window.addEventListener('pagehide', writeTabs);
+window.addEventListener('pagehide', () => {
+  if (active) captureScroll(active);
+  writeTabs();
+});
 
 function restoreTabs() {
   const saved = store.get(TABS, null);
@@ -862,6 +967,8 @@ function restoreTabs() {
         pendingUrl: typeof s.url === 'string' ? s.url : '',
         pinned: !!s.pinned,
         group: !s.pinned && ids.has(s.group) ? s.group : null,
+        restore: cleanScroll(s.scroll),
+        scroll: cleanScroll(s.scroll),
       }),
     );
   }

@@ -163,6 +163,13 @@ export async function startOrigin(
           { 'content-type': 'text/html; charset=utf-8' },
           `<!doctype html><html><head><title>hosts</title>${Array.from({ length: 30 }, (_, i) => `<link rel="stylesheet" href="http://host${i}.example.test/s.css">`).join('')}</head><body>x</body></html>`,
         );
+      case '/tall.html':
+        // A page much taller than a window, for scroll position tests.
+        return send(
+          200,
+          { 'content-type': 'text/html; charset=utf-8' },
+          '<!doctype html><title>tall</title><h1>tall</h1><div style="height:6000px">content</div><p id="end">end</p>',
+        );
       case '/static.html':
         return send(200, { 'content-type': 'text/html; charset=utf-8' }, html);
       case '/style.css':

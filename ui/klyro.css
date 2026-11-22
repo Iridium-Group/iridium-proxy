@@ -141,7 +141,7 @@ svg {
   backdrop-filter: var(--blur);
 }
 
-/* ---- the bar: toolbar row, then the tab strip ---- */
+/* ---- the bar: a toolbar row, then a row of tab chips (Scramjet's layout) ---- */
 #chrome {
   position: relative;
   z-index: 10;
@@ -155,8 +155,7 @@ svg {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 44px;
-  padding: 0 8px;
+  padding: 5px 8px;
 }
 .nav {
   display: flex;
@@ -164,16 +163,16 @@ svg {
 }
 .icon {
   flex: none;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--r2);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r1);
   display: grid;
   place-items: center;
   color: var(--muted);
 }
 .icon svg {
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
 }
 .icon:hover:not(:disabled) {
   background: var(--select);
@@ -183,25 +182,38 @@ svg {
   opacity: 0.35;
   cursor: default;
 }
+.boxbtn,
+#gobtn {
+  flex: none;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r1);
+  background: var(--raise);
+  font: 500 12.5px/1 var(--font);
+}
+.boxbtn {
+  padding: 0;
+  font-size: 16px;
+  font-weight: 400;
+}
+.boxbtn:hover,
+#gobtn:hover {
+  background: var(--select);
+}
 #bar {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
-  height: 100%;
-  background: none;
-  border: 0;
-}
-#strip > #bar {
-  /* the selected tab is a pinned one, so the address bar stands beside the pinned tabs */
-  flex: 1 1 260px;
-  height: 32px;
-  padding-left: 4px;
+  height: 28px;
   background: var(--field);
   border: 1px solid var(--edge);
-  border-radius: var(--r2);
+  border-radius: var(--r1);
 }
-#strip > #bar:focus-within {
+#bar:focus-within {
   border-color: var(--focus);
 }
 #address {
@@ -212,16 +224,16 @@ svg {
   border: 0;
   outline: 0;
   color: var(--fg);
-  font: 400 13px/1 var(--mono);
-  padding: 0 4px 0 2px;
+  font: 400 12.5px/1 var(--mono);
+  padding: 0 4px 0 10px;
   text-overflow: ellipsis;
 }
 #address::placeholder {
   color: var(--muted);
 }
 #star {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   margin-right: 2px;
 }
 #star.on {
@@ -230,113 +242,77 @@ svg {
 #star.on svg {
   fill: currentColor;
 }
-#gobtn {
-  display: block;
-  flex: none;
-  height: 22px;
-  margin-right: 3px;
-  padding: 0 9px;
-  border: 1px solid var(--edge);
-  border-radius: var(--r1);
-  background: var(--raise);
-  font: 500 12px/1 var(--font);
-}
-#gobtn:hover {
-  background: var(--select);
-}
 
-/* ---- tab strip ---- */
+/* ---- tab chips ---- */
 #strip {
-  flex: 1;
-  min-width: 0;
   display: flex;
   align-items: center;
   gap: 4px;
+  padding: 0 8px 6px;
+  min-height: 31px;
 }
 .pinned {
   flex: none;
   display: flex;
-  gap: 2px;
+  gap: 4px;
 }
 .pinned:empty {
   display: none;
 }
 body.dragging .pinned:empty {
   display: flex;
-  min-width: 34px;
-  height: 28px;
+  min-width: 30px;
+  height: 24px;
   border: 1px dashed var(--edge);
-  border-radius: var(--r2);
+  border-radius: var(--r1);
 }
 .pinned.over,
 .list.over {
   outline: 1px dashed var(--focus);
   outline-offset: 2px;
-  border-radius: var(--r2);
+  border-radius: var(--r1);
 }
 .list {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
 }
 .list::-webkit-scrollbar {
   display: none;
 }
-
 .tab {
   position: relative;
-  flex: 0 1 132px;
-  min-width: 36px;
-  height: 28px;
+  flex: 0 1 172px;
+  min-width: 72px;
+  height: 24px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 0 4px 0 8px;
+  gap: 6px;
+  padding: 0 3px 0 7px;
+  border: 1px solid var(--edge);
   border-radius: var(--r1);
   color: var(--muted);
   cursor: default;
   user-select: none;
   -webkit-user-select: none;
-  font-size: 13px;
+  font-size: 12px;
 }
 .tab:hover {
   background: var(--raise);
   color: var(--fg);
 }
 .tab[aria-selected='true'] {
-  flex: 1 1 360px;
-  min-width: 190px;
-  height: 32px;
+  background: var(--select);
   color: var(--fg);
-  background: var(--field);
-  box-shadow: inset 0 0 0 1px var(--edge);
-  border-radius: var(--r2);
-  cursor: auto;
+  border-color: color-mix(in srgb, var(--fg) 38%, transparent);
 }
-.tab[aria-selected='true']:focus-within {
-  box-shadow: inset 0 0 0 1px var(--focus);
-}
-.tab[aria-selected='true'] .t {
-  display: none; /* the address bar shows where this tab is; the title stays for assistive tech */
-}
-.tab[aria-selected='true']::before {
-  content: '';
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  top: 0;
-  height: 2px;
-  border-radius: 0 0 2px 2px;
-  background: var(--signal);
-}
-@media (prefers-color-scheme: light) {
-  .tab[aria-selected='true']::before {
-    background: var(--focus);
-  }
+.tab.sleeping .t,
+.tab.sleeping .fav-badge {
+  opacity: 0.55;
 }
 .tab.dragging {
   opacity: 0.4;
@@ -362,13 +338,13 @@ body.dragging .pinned:empty {
 }
 .fav-badge {
   flex: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
   display: grid;
   place-items: center;
   color: var(--fg);
-  font: 500 10px/1 var(--mono);
+  font: 500 9px/1 var(--mono);
   background: var(--badge);
 }
 .fav-badge.blank {
@@ -387,29 +363,18 @@ body.dragging .pinned:empty {
 }
 .tab .x {
   flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 5px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
   display: grid;
   place-items: center;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1;
-  opacity: 0;
-}
-.tab:hover .x,
-.tab[aria-selected='true'] .x,
-.tab:focus-within .x {
-  opacity: 1;
 }
 .tab .x:hover {
   background: var(--select);
   color: var(--fg);
-}
-@media (hover: none) {
-  .tab .x {
-    opacity: 1;
-  }
 }
 .tab .more {
   display: none;
@@ -417,20 +382,20 @@ body.dragging .pinned:empty {
 @media (hover: none) {
   .tab[aria-selected='true'] .more {
     flex: none;
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     display: grid;
     place-items: center;
   }
   .tab .more svg {
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
   }
 }
 .tab.pin {
   flex: none;
   min-width: 0;
-  width: 32px;
+  width: 30px;
   justify-content: center;
   padding: 0;
 }
@@ -440,31 +405,30 @@ body.dragging .pinned:empty {
   display: none;
 }
 .tab.pin .fav-badge {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
-/* ---- groups: a tinted capsule around the group's tabs ---- */
+/* ---- groups: a thin outlined capsule around the group's chips ---- */
 .group {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 2px;
-  margin: 0 3px;
-  padding: 1px 2px;
-  border-radius: 9px;
+  gap: 3px;
+  padding: 1px 3px 1px 1px;
+  border: 1px solid var(--edge);
+  border-radius: 7px;
   background: var(--raise);
-  box-shadow: inset 0 0 0 1px var(--edge);
 }
 .ghead {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 24px;
-  padding: 0 8px 0 6px;
+  height: 22px;
+  padding: 0 6px 0 6px;
   border-radius: var(--r1);
   color: var(--fg);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 500;
   user-select: none;
   -webkit-user-select: none;
@@ -488,29 +452,29 @@ body.dragging .pinned:empty {
   box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.55);
 }
 .ghead .gname {
-  max-width: 120px;
+  max-width: 110px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 .ghead input {
-  width: 110px;
+  width: 100px;
   font: inherit;
   color: var(--fg);
   background: var(--field);
   border: 1px solid var(--focus);
-  border-radius: 4px;
+  border-radius: 3px;
   padding: 0 5px;
   outline: 0;
 }
 .ghead .count {
-  font: 400 11px/1 var(--mono);
+  font: 400 10.5px/1 var(--mono);
   color: var(--muted);
 }
 .gbody {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 .group.collapsed .gbody .tab:not([aria-selected='true']) {
@@ -783,24 +747,14 @@ body.dragging .pinned:empty {
   }
   .toolbar {
     gap: 4px;
-    padding: 0 6px;
+    padding: 5px 6px;
   }
-  #gobtn {
-    display: none;
+  #strip {
+    padding: 0 6px 6px;
   }
-  .tab:not([aria-selected='true']) {
-    flex: none;
-    width: 30px;
-    padding: 0;
-    justify-content: center;
-  }
-  .tab:not([aria-selected='true']) .t,
-  .tab:not([aria-selected='true']) .x {
-    display: none;
-  }
-  .tab[aria-selected='true'] {
-    min-width: 140px;
-    padding-left: 6px;
+  .tab {
+    flex-basis: 120px;
+    min-width: 64px;
   }
   #homeview {
     padding-top: 10vh;

@@ -337,6 +337,108 @@ describe('klyro native mode in a browser', () => {
     await page.close();
   });
 
+  const tall = () => `http://127.0.0.1:${origin.port}/tall.html`;
+  const scrollOf = (page) =>
+    page.evaluate(
+      () => document.querySelector('iframe.view:not([hidden])')?.contentWindow.scrollY ?? -1,
+    );
+  const scrollFrameTo = (page, y) =>
+    page.evaluate(
+      (y) => document.querySelector('iframe.view:not([hidden])').contentWindow.scrollTo(0, y),
+      y,
+    );
+
+  it('tab cache: a tab remembers where it was scrolled to, also across a reload', async () => {
+    const page = await browser.newPage();
+    await page.goto(`${base}/`);
+    await page.fill('#url', tall());
+    await page.press('#url', 'Enter');
+    await page
+      .frameLocator('iframe.view')
+      .locator('#end')
+      .waitFor({ state: 'attached', timeout: 20_000 });
+    await scrollFrameTo(page, 1500);
+    await page.waitForFunction(
+      () => JSON.parse(localStorage.getItem('klyro.tabs') ?? '{}').tabs?.[0]?.scroll >= 1400,
+      undefined,
+      { timeout: 10_000 },
+    );
+    await page.reload();
+    await page
+      .frameLocator('iframe.view')
+      .locator('#end')
+      .waitFor({ state: 'attached', timeout: 20_000 });
+    await page.waitForFunction(
+      () => (document.querySelector('iframe.view')?.contentWindow.scrollY ?? 0) >= 1400,
+      undefined,
+      { timeout: 10_000 },
+    );
+    const y = await scrollOf(page);
+    assert.ok(Math.abs(y - 1500) <= 5, `scroll came back (${y})`);
+    await page.close();
+  });
+
+  it('tab cache: a tab can be put to sleep and wakes where it was, in the same session', async () => {
+    const page = await browser.newPage();
+    await page.goto(`${base}/`);
+    await page.fill('#url', tall());
+    await page.press('#url', 'Enter');
+    await page
+      .frameLocator('iframe.view')
+      .locator('#end')
+      .waitFor({ state: 'attached', timeout: 20_000 });
+    await scrollFrameTo(page, 900);
+    await page.waitForTimeout(1300); // the shell reads the position once a second
+    const before = await page.evaluate(
+      () => document.querySelector('iframe.view').contentWindow.location.pathname,
+    );
+    assert.match(before, /^\/k\/[\w-]{22}\/http\//);
+
+    await page.click('#newtab'); // the first tab is now in the background
+    assert.equal(await page.locator('iframe.view').count(), 1);
+    await page.locator('.tab').first().click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Put to sleep' }).click();
+    assert.equal(await page.locator('iframe.view').count(), 0, 'its page was unloaded');
+    assert.equal(await page.locator('.tab.sleeping').count(), 1);
+    assert.match(
+      await page.locator('.tab.sleeping .t').textContent(),
+      /tall/,
+      'it keeps its title',
+    );
+
+    await page.locator('.tab.sleeping').click(); // wake
+    await page
+      .frameLocator('iframe.view')
+      .locator('#end')
+      .waitFor({ state: 'attached', timeout: 20_000 });
+    await page.waitForFunction(
+      () => (document.querySelector('iframe.view')?.contentWindow.scrollY ?? 0) >= 850,
+      undefined,
+      { timeout: 10_000 },
+    );
+    const after = await page.evaluate(
+      () => document.querySelector('iframe.view').contentWindow.location.pathname,
+    );
+    assert.equal(after, before, 'the same session address, so a login would be kept');
+    assert.equal(await page.locator('.tab.sleeping').count(), 0);
+    await page.close();
+  });
+
+  it('tab cache: tabs nobody has looked at for a while go to sleep by themselves', async () => {
+    const page = await browser.newPage();
+    await page.addInitScript(() => localStorage.setItem('klyro.sleepMs', '1500'));
+    await page.goto(`${base}/`);
+    await page.fill('#url', `http://127.0.0.1:${origin.port}/static.html`);
+    await page.press('#url', 'Enter');
+    await page.frameLocator('iframe.view').locator('h1').waitFor({ timeout: 20_000 });
+    await page.click('#newtab'); // leave the first tab behind
+    await page.waitForSelector('.tab.sleeping', { timeout: 10_000 });
+    assert.equal(await page.locator('iframe.view').count(), 0);
+    // the selected tab never sleeps
+    assert.equal(await page.locator('.tab[aria-selected=true].sleeping').count(), 0);
+    await page.close();
+  });
+
   it('shows the home page', async () => {
     const page = await browser.newPage();
     await page.goto(`${base}/`);

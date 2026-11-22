@@ -28,42 +28,38 @@
             </svg>
           </button>
         </div>
-        <div id="strip">
-          <div id="pinned" class="pinned" aria-label="Pinned tabs"></div>
-          <div id="tabs" class="list" role="tablist" aria-label="Open tabs"></div>
-          <form id="bar" autocomplete="off">
-            <input
-              id="address"
-              type="text"
-              inputmode="url"
-              spellcheck="false"
-              placeholder="Search or enter a URL"
-              aria-label="Address"
-              aria-controls="suggest"
-              aria-autocomplete="list"
-            />
-            <button
-              type="button"
-              id="star"
-              class="icon"
-              title="Add to favorites"
-              aria-label="Add to favorites"
-            >
-              <svg viewBox="0 0 24 24">
-                <path d="M12 4l2.5 5.2 5.7.8-4.1 4 1 5.7L12 17l-5.1 2.7 1-5.7-4.1-4 5.7-.8z" />
-              </svg>
-            </button>
-            <button type="submit" id="gobtn">Go</button>
-          </form>
-        </div>
+        <form id="bar" autocomplete="off">
+          <input
+            id="address"
+            type="text"
+            inputmode="url"
+            spellcheck="false"
+            placeholder="Search or enter a URL"
+            aria-label="Address"
+            aria-controls="suggest"
+            aria-autocomplete="list"
+          />
+          <button
+            type="button"
+            id="star"
+            class="icon"
+            title="Add to favorites"
+            aria-label="Add to favorites"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M12 4l2.5 5.2 5.7.8-4.1 4 1 5.7L12 17l-5.1 2.7 1-5.7-4.1-4 5.7-.8z" />
+            </svg>
+          </button>
+        </form>
+        <button type="submit" id="gobtn" form="bar">Go</button>
         <button
           type="button"
           id="newtab"
-          class="icon"
+          class="boxbtn"
           title="New tab (Ctrl+T)"
           aria-label="New tab"
         >
-          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+          +
         </button>
         <button type="button" id="home" class="icon" title="New tab page" aria-label="New tab page">
           <svg viewBox="0 0 24 24">
@@ -73,6 +69,10 @@
             <rect x="13" y="13" width="7" height="7" rx="2" />
           </svg>
         </button>
+      </div>
+      <div id="strip">
+        <div id="pinned" class="pinned" aria-label="Pinned tabs"></div>
+        <div id="tabs" class="list" role="tablist" aria-label="Open tabs"></div>
       </div>
       <ul id="suggest" role="listbox" hidden></ul>
     </header>
