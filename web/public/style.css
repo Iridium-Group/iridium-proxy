@@ -17,31 +17,60 @@
   src: url('fonts/ibm-plex-mono-latin-500-normal.woff2') format('woff2');
 }
 
-/* Klyro palette: Obsidian #17191B, Porcelain #F5F5F1, Graphite #303438, Stone #929697, Mist #E7E8E3,
-   Signal Green #B8D98A. Green marks focus only. */
+/*
+ * Same visual system as the Klyro interface on the VM.
+ * Palette: Obsidian #17191B, Porcelain #F5F5F1, Graphite #303438, Stone #929697, Mist #E7E8E3,
+ * Signal Green #B8D98A. Soft charcoal glass in dark, light follows the system.
+ */
 :root {
-  color-scheme: light dark;
-  --bg: #f5f5f1;
-  --surface: #e7e8e3;
-  --fg: #17191b;
-  --muted: #686c6e;
-  --line: #d3d5cf;
-  --focus: #5a7d2c;
-  --err: #b3382c;
+  color-scheme: dark;
+  --canvas: linear-gradient(165deg, #2a2d31 0%, #202225 45%, #1b1d20 100%);
+  --glass: rgba(44, 47, 52, 0.62);
+  --edge: rgba(245, 245, 241, 0.09);
+  --raise: rgba(245, 245, 241, 0.06);
+  --select: rgba(245, 245, 241, 0.12);
+  --field: rgba(23, 25, 27, 0.38);
+  --fg: #f5f5f1;
+  --muted: #a1a5a7;
+  --focus: #b8d98a;
+  --err: #d98f84;
+  --blur: blur(18px) saturate(1.15);
+  --r1: 6px;
+  --r2: 8px;
   --sans:
     Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root {
-    --bg: #17191b;
-    --surface: #1f2325;
-    --fg: #f5f5f1;
-    --muted: #929697;
-    --line: #303438;
-    --focus: #b8d98a;
-    --err: #d98f84;
+    color-scheme: light;
+    --canvas: linear-gradient(165deg, #f7f7f3 0%, #ecede8 55%, #e4e6e1 100%);
+    --glass: rgba(250, 250, 247, 0.7);
+    --edge: rgba(23, 25, 27, 0.11);
+    --raise: rgba(23, 25, 27, 0.05);
+    --select: rgba(23, 25, 27, 0.09);
+    --field: rgba(255, 255, 255, 0.7);
+    --fg: #17191b;
+    --muted: #686c6e;
+    --focus: #5a7d2c;
+    --err: #b3382c;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass: #26292d;
+    --blur: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: light) {
+  :root {
+    --glass: #f2f2ee;
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass: #2a2d31;
   }
 }
 * {
@@ -52,24 +81,37 @@ body {
   height: 100%;
   margin: 0;
 }
+/* header on top, the page in the middle, then the status line and the links as one bar */
 body {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'head head'
+    'page page'
+    'status links';
+  background: var(--canvas) fixed;
+  background-color: #1b1d20;
   color: var(--fg);
   font: 14px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 header {
+  grid-area: head;
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line);
+  height: 44px;
+  padding: 0 8px 0 12px;
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border-bottom: 1px solid var(--edge);
 }
 header strong {
   font-weight: 600;
@@ -79,17 +121,19 @@ header strong {
 form {
   display: flex;
   flex: 1;
-  gap: 8px;
+  gap: 6px;
+  align-items: center;
 }
 input {
   flex: 1;
   min-width: 0;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r2);
+  background: var(--field);
   color: var(--fg);
-  font: 400 13px/1.4 var(--mono);
+  font: 400 13px/1 var(--mono);
 }
 input::placeholder {
   color: var(--muted);
@@ -99,30 +143,37 @@ input:focus {
   border-color: var(--focus);
 }
 button {
-  padding: 8px 16px;
-  border: 1px solid var(--fg);
-  border-radius: 8px;
-  background: var(--fg);
-  color: var(--bg);
-  font: 500 14px/1.4 var(--sans);
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r2);
+  background: var(--raise);
+  color: var(--fg);
+  font: 500 13px/1 var(--sans);
   cursor: pointer;
 }
 button:hover {
-  opacity: 0.88;
+  background: var(--select);
 }
 #status {
+  grid-area: status;
   margin: 0;
-  padding: 6px 12px;
-  min-height: 1.5em;
+  padding: 5px 12px;
+  min-height: 28px;
   color: var(--muted);
-  font: 400 12px/1.5 var(--mono);
+  font: 400 11.5px/1.6 var(--mono);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border-top: 1px solid var(--edge);
 }
 #status[data-bad='1'] {
   color: var(--err);
 }
 main {
-  flex: 1;
+  grid-area: page;
   display: flex;
+  min-height: 0;
 }
 main iframe {
   flex: 1;
@@ -131,21 +182,32 @@ main iframe {
   background: #fff; /* proxied pages assume a white canvas */
 }
 footer {
-  padding: 6px 12px;
-  font-size: 12px;
+  grid-area: links;
+  padding: 5px 12px;
+  font-size: 11.5px;
   color: var(--muted);
-  border-top: 1px solid var(--line);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
+  border-top: 1px solid var(--edge);
 }
 footer a {
   color: inherit;
-  text-underline-offset: 3px;
+  text-decoration: none;
 }
 footer a:hover {
   color: var(--fg);
+  text-decoration: underline;
 }
 @media (max-width: 560px) {
   header strong {
     display: none;
+  }
+  button {
+    padding: 0 11px;
+  }
+  footer {
+    font-size: 11px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
