@@ -90,3 +90,25 @@ Run the install command again. It fetches the latest code, rebuilds and restarts
 - The proxy has no login. Anyone who can reach it can use it. Add access control in Caddy
   (basic auth or an IP allow-list) if the server should be private.
 - Read your provider's acceptable-use policy: running a proxy may not be allowed on every host.
+
+## Hardening a separate Wisp server (Bromine)
+
+If a standalone `wisp-js` server runs next to Klyro (the `bromine-wisp` service on port 8080), two
+things are worth fixing. `deploy/harden-bromine-wisp.sh` does both, and it can be run twice safely:
+
+- **One bad client can stop the whole server.** A WebSocket message without a mask (browsers never send
+  one) makes the `ws` library raise an error that nothing handles, which ends the process and drops
+  every other client. The script logs errors that carry a `WS_ERR_*` code and keeps serving; any other
+  error still stops the process. A deliberately malformed frame reproduced the crash on the original
+  code, and the patched server survived the same frame.
+- **It listened on every interface.** A new `WISP_HOST` setting (default `0.0.0.0`, so other hosts
+  behave as before) is set to `127.0.0.1` in the systemd unit, since only Caddy needs to reach it.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Iridium-Group/iridium-proxy/main/deploy/harden-bromine-wisp.sh | ssh -i KEY ubuntu@HOST sudo bash
+```
+
+It backs up the files it edits (`*.bak.<time>`), refuses to touch files that do not look as expected,
+restarts the service, sends the malformed frame as a check, and puts everything back if the service
+does not come back healthy. If the server directory is a git checkout, the edit shows up as a local
+change; commit it or expect `git pull` to need a merge.
