@@ -115,6 +115,22 @@ CADDY_DIR=${CADDY_DIR:-/etc/caddy}
 install_caddy_site() {
   local main="$CADDY_DIR/Caddyfile" site="$CADDY_DIR/klyro.caddy" backup=""
   mkdir -p "$CADDY_DIR"
+  # Does Caddy already serve this name (for example from a block an earlier version of this script
+  # wrote into the Caddyfile)? Then leave Caddy as it is: a second block for the same name makes
+  # Caddy refuse the whole configuration. "caddy adapt" follows imports, so it sees every file.
+  if [ -s "$main" ] && ! grep -q 'klyro.caddy' "$main"; then
+    local seen=""
+    if command -v caddy >/dev/null; then
+      caddy adapt --config "$main" --adapter caddyfile 2>/dev/null | grep -qF "\"$DOMAIN\"" && seen=1
+    else
+      grep -qsE "^[[:space:]]*(https?://)?$DOMAIN([[:space:],{]|\$)" "$main" && seen=1
+    fi
+    if [ -n "$seen" ]; then
+      echo "Caddy already serves $DOMAIN; leaving the Caddy configuration unchanged."
+      echo "(If that site does not proxy to 127.0.0.1:$PORT, edit it or remove it and run this again.)"
+      return 0
+    fi
+  fi
   cat > "$site" <<CADDY
 $DOMAIN {
 	encode zstd gzip
@@ -147,7 +163,9 @@ CADDY
     return 1
   fi
 }
-install_caddy_site
+# A Caddy problem must not stop the proxy itself from being updated: the original Caddyfile is
+# restored on failure, so carry on and say so.
+install_caddy_site || echo "Caddy was left as it was. The proxy itself is still being updated." >&2
 
 # Ubuntu images on some clouds ship firewall rules that block 80/443; allow them.
 if command -v iptables >/dev/null && iptables -S INPUT 2>/dev/null | grep -q -- '-j REJECT'; then
