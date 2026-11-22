@@ -18,23 +18,22 @@
 }
 
 /*
- * Same visual system as the Klyro interface on the VM.
- * Palette: Obsidian #17191B, Porcelain #F5F5F1, Graphite #303438, Stone #929697, Mist #E7E8E3,
- * Signal Green #B8D98A. Soft charcoal glass in dark, light follows the system.
+ * Same visual system as the Klyro interface on the VM: black and white, neutral greys only.
+ * Soft charcoal glass in dark; light follows the system.
  */
 :root {
   color-scheme: dark;
-  --canvas: linear-gradient(165deg, #2a2d31 0%, #202225 45%, #1b1d20 100%);
-  --glass: rgba(44, 47, 52, 0.62);
-  --edge: rgba(245, 245, 241, 0.09);
-  --raise: rgba(245, 245, 241, 0.06);
-  --select: rgba(245, 245, 241, 0.12);
-  --field: rgba(23, 25, 27, 0.38);
-  --fg: #f5f5f1;
-  --muted: #a1a5a7;
-  --focus: #b8d98a;
-  --err: #d98f84;
-  --blur: blur(18px) saturate(1.15);
+  --canvas: linear-gradient(165deg, #262626 0%, #1c1c1c 45%, #141414 100%);
+  --glass: rgba(40, 40, 40, 0.62);
+  --edge: rgba(255, 255, 255, 0.1);
+  --raise: rgba(255, 255, 255, 0.06);
+  --select: rgba(255, 255, 255, 0.12);
+  --field: rgba(0, 0, 0, 0.32);
+  --fg: #fafafa;
+  --muted: #a3a3a3;
+  --focus: #ffffff;
+  --err: #fafafa;
+  --blur: blur(18px) saturate(1.1);
   --r1: 6px;
   --r2: 8px;
   --sans:
@@ -45,32 +44,32 @@
 @media (prefers-color-scheme: light) {
   :root {
     color-scheme: light;
-    --canvas: linear-gradient(165deg, #f7f7f3 0%, #ecede8 55%, #e4e6e1 100%);
-    --glass: rgba(250, 250, 247, 0.7);
-    --edge: rgba(23, 25, 27, 0.11);
-    --raise: rgba(23, 25, 27, 0.05);
-    --select: rgba(23, 25, 27, 0.09);
-    --field: rgba(255, 255, 255, 0.7);
-    --fg: #17191b;
-    --muted: #686c6e;
-    --focus: #5a7d2c;
-    --err: #b3382c;
+    --canvas: linear-gradient(165deg, #fbfbfb 0%, #efefef 55%, #e4e4e4 100%);
+    --glass: rgba(255, 255, 255, 0.72);
+    --edge: rgba(0, 0, 0, 0.12);
+    --raise: rgba(0, 0, 0, 0.05);
+    --select: rgba(0, 0, 0, 0.09);
+    --field: rgba(255, 255, 255, 0.85);
+    --fg: #111111;
+    --muted: #5e5e5e;
+    --focus: #111111;
+    --err: #111111;
   }
 }
 @media (prefers-reduced-transparency: reduce) {
   :root {
-    --glass: #26292d;
+    --glass: #262626;
     --blur: none;
   }
 }
 @media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: light) {
   :root {
-    --glass: #f2f2ee;
+    --glass: #f2f2f2;
   }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root {
-    --glass: #2a2d31;
+    --glass: #2a2a2a;
   }
 }
 * {
@@ -91,7 +90,7 @@ body {
     'page page'
     'status links';
   background: var(--canvas) fixed;
-  background-color: #1b1d20;
+  background-color: #171717;
   color: var(--fg);
   font: 14px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;

@@ -74,16 +74,16 @@ const hostOf = (u) => {
     return u;
   }
 };
-// Group colours: Signal Green, Stone and Mist from the brand palette, then quiet tones that sit with them.
+// Group colours: greys from white to charcoal, told apart by lightness and by the group's name.
 const COLORS = [
-  '#b8d98a',
-  '#929697',
-  '#e7e8e3',
-  '#c8b88e',
-  '#8fa9ad',
-  '#a3b58b',
-  '#b9a0a0',
-  '#8d96b0',
+  '#ffffff',
+  '#c4c4c4',
+  '#8e8e8e',
+  '#5c5c5c',
+  '#dedede',
+  '#a6a6a6',
+  '#737373',
+  '#3f3f3f',
 ];
 const uid = () => Math.random().toString(36).slice(2, 8);
 

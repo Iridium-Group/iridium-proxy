@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Klyro">
-  <rect x="4" y="4" width="120" height="120" rx="28" fill="#17191B"/>
-  <rect x="4.75" y="4.75" width="118.5" height="118.5" rx="27.25" fill="none" stroke="#303438" stroke-width="1.5"/>
-  <path d="M36 28h14v72H36z" fill="#F5F5F1"/>
-  <path d="M40.6 60.1 76.1 28h23.8L51.4 71.9z" fill="#F5F5F1"/>
-  <path d="M40.6 67.9 76.1 100h23.8L51.4 56.1z" fill="#B8D98A"/>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#111111"/>
+  <rect x="4.75" y="4.75" width="118.5" height="118.5" rx="27.25" fill="none" stroke="#2e2e2e" stroke-width="1.5"/>
+  <path d="M36 28h14v72H36z" fill="#FFFFFF"/>
+  <path d="M40.6 60.1 76.1 28h23.8L51.4 71.9z" fill="#FFFFFF"/>
+  <path d="M40.6 67.9 76.1 100h23.8L51.4 56.1z" fill="#8A8A8A"/>
 </svg>
