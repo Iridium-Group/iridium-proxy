@@ -25,10 +25,24 @@ const setStatus = (text, bad = false) => {
 let controller;
 let frame;
 
+/** If one of the scripts did not start, say which, and why, in words a person can send back. */
+function explainMissing() {
+  const missing = [];
+  if (typeof $scramjet === 'undefined') missing.push('Scramjet (scramjet.js)');
+  if (typeof $scramjetController === 'undefined' || !$scramjetController?.Controller)
+    missing.push('the Scramjet controller (controller.api.js)');
+  if (typeof LibcurlTransport === 'undefined') missing.push('the transport (libcurl/index.js)');
+  if (!missing.length) return '';
+  const why = (window.__loadErrors ?? []).join('; ');
+  return `${missing.join(' and ')} did not start${why ? `: ${why}` : ''}. Browser: ${navigator.userAgent}`;
+}
+
 async function setup() {
   if (!navigator.serviceWorker) {
     throw new Error('Service workers need https (or localhost) and a modern browser.');
   }
+  const problem = explainMissing();
+  if (problem) throw new Error(problem);
   const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
   const { active } = await navigator.serviceWorker.ready;
   // A static host (for example Vercel) cannot run Wisp, so config.js can point at a separate server.

@@ -10,6 +10,23 @@
     <meta name="theme-color" content="#171717" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#efefef" media="(prefers-color-scheme: light)" />
     <link rel="stylesheet" href="style.css" />
+    <script>
+      // Remember anything that fails while the page's scripts load, so the page can say what went wrong.
+      window.__loadErrors = [];
+      addEventListener(
+        'error',
+        function (e) {
+          var t = e.target;
+          window.__loadErrors.push(
+            t && t.src
+              ? 'could not load ' + t.src.split('/').slice(3).join('/')
+              : (e.message || 'error') +
+                  (e.filename ? ' (' + e.filename.split('/').pop() + ')' : ''),
+          );
+        },
+        true,
+      );
+    </script>
     <script src="config.js"></script>
     <script src="/scramjet/scramjet.js"></script>
     <script src="/controller/controller.api.js"></script>

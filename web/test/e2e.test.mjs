@@ -141,6 +141,33 @@ describe('browser client', { skip: !existsSync(staticDir + 'scramjet') }, () => 
     }
   });
 
+  it('says which script failed and why, instead of a vague error', async () => {
+    const page = await browser.newPage();
+    // break one script on purpose: the controller then also fails to start, because it needs Scramjet
+    await page.route('**/scramjet/scramjet.js', (route) => route.abort());
+    await page.goto(base);
+    await page.fill('#address', `http://127.0.0.1:${site.address().port}/`);
+    await page.click('button');
+    await page.waitForFunction(
+      () => document.getElementById('status').dataset.bad === '1',
+      undefined,
+      {
+        timeout: 20_000,
+      },
+    );
+    const text = await page.textContent('#status');
+    assert.match(text, /Scramjet \(scramjet\.js\) and the Scramjet controller/);
+    assert.match(
+      text,
+      /could not load scramjet\/scramjet\.js/,
+      'it names the file that failed to load',
+    );
+    assert.match(text, /controller\.api\.js/, "it carries the controller's own error");
+    assert.match(text, /Browser: /);
+    assert.doesNotMatch(text, /reading 'Controller'/, 'no more the vague message');
+    await page.close();
+  });
+
   it('loads a page through the proxy', async () => {
     const page = await browser.newPage();
     const errors = [];
