@@ -51,7 +51,7 @@ const allImagesLoaded = (count) =>
   document.images.length >= count && [...document.images].every((i) => i.complete);
 
 async function main() {
-  if (!existsSync(`${root}web/public/scram/scramjet.wasm.wasm`))
+  if (!existsSync(`${root}web/public/scramjet/scramjet.wasm`))
     throw new Error('run npm run build:web first');
   const origin = await startOrigin();
   const kPort = 19100 + Math.floor(Math.random() * 400);

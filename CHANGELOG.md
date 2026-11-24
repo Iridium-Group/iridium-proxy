@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Scramjet client upgraded from 1.1.0 to 2.1.0** (`web/`, compatibility mode and the Vercel client). Scramjet 2
+  no longer uses bare-mux: the page now uses `scramjet-controller` and a `proxy-transports` transport
+  (`libcurl-transport` 2.0.6) to reach Wisp. Cookies a site sets are kept, also across a reload of the page
+  (new test). The packages are AGPL-3.0-only, which the credits now say correctly. The browser benchmark was
+  rerun: the new client loads the 100-image page in 485 ms cold and 516 ms warm (was 678 and 550).
+  `WISP_URL`, `/wisp/` and the allowed-origins rules are unchanged, so existing Wisp servers need no change.
+- The generated folders in `web/public/` are now `scramjet/`, `controller/` and `libcurl/`.
 - New interface: a proper logo (`ui/logo.svg` plus PNG icons), the Inter typeface, real toolbar icons, favorites as
   tiles. The Recent list is gone (and any history it saved is deleted from the browser).
 - Tabs are saved and restored after a reload or restart (addresses and titles only, never sessions), the

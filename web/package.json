@@ -10,9 +10,9 @@
     "test": "node --test --test-timeout=120000 test/*.test.mjs"
   },
   "dependencies": {
-    "@mercuryworkshop/bare-mux": "^2.1.9",
-    "@mercuryworkshop/libcurl-transport": "1.5.2",
-    "@mercuryworkshop/scramjet": "1.1.0"
+    "@mercuryworkshop/libcurl-transport": "2.0.6",
+    "@mercuryworkshop/scramjet": "2.1.0",
+    "@mercuryworkshop/scramjet-controller": "0.1.0"
   },
   "devDependencies": {
     "playwright": "^1.65.1"

@@ -97,20 +97,21 @@ gains from connection reuse and caching are larger on a real network than shown.
 
 ## Results: browser page load (`npm run bench:browser`)
 
-Headless Chromium, 6 runs each, a page with 100 small images. "Loaded" means every image has finished
+Headless Chromium, 8 runs each, a page with 100 small images. "Loaded" means every image has finished
 loading. Cold = fresh browser context (for Scramjet this includes service worker and WebAssembly
-start-up); warm = a second navigation.
+start-up); warm = a second navigation. The Scramjet client here is version 2.1.0 (the earlier numbers
+in this file, with Scramjet 1.1.0, were 678 ms cold and 550 ms warm).
 
 | Page             | Phase | Mode         | p50 ms | mean ms | min ms | max ms | runs |
 | ---------------- | ----- | ------------ | -----: | ------: | -----: | -----: | ---: |
-| 100 small images | cold  | direct       |    156 |     159 |    132 |    196 |    6 |
-| 100 small images | cold  | klyro-native |    203 |     215 |    184 |    253 |    6 |
-| 100 small images | cold  | scramjet     |    678 |     684 |    646 |    731 |    6 |
-| 100 small images | warm  | direct       |    137 |     144 |    123 |    167 |    6 |
-| 100 small images | warm  | klyro-native |    200 |     194 |    168 |    214 |    6 |
-| 100 small images | warm  | scramjet     |    550 |     541 |    450 |    583 |    6 |
+| 100 small images | cold  | direct       |    144 |     152 |    128 |    176 |    8 |
+| 100 small images | cold  | klyro-native |    193 |     202 |    180 |    243 |    8 |
+| 100 small images | cold  | scramjet     |    485 |     513 |    448 |    595 |    8 |
+| 100 small images | warm  | direct       |    119 |     126 |    107 |    158 |    8 |
+| 100 small images | warm  | klyro-native |    172 |     172 |    146 |    187 |    8 |
+| 100 small images | warm  | scramjet     |    516 |     519 |    483 |    566 |    8 |
 
-Klyro native loads this page about 3.3x faster cold and 2.75x faster warm than the Scramjet client.
+Klyro native loads this page about 2.5x faster cold and 3.0x faster warm than the Scramjet client.
 **This is not a like-for-like feature comparison**: Scramjet rewrites JavaScript and so supports
 more sites; Klyro's native mode does less work and supports fewer.
 

@@ -2,7 +2,7 @@ dist/
 node_modules/
 package-lock.json
 .github/assets/
-web/public/scram
-web/public/baremux
+web/public/scramjet
+web/public/controller
 web/public/libcurl
 web/node_modules

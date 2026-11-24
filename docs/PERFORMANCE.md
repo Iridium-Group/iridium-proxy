@@ -12,7 +12,7 @@ configurations on selected workloads. This is a target, not a result.
 | Klyro vs a direct connection, single requests                   | 0.02x to 0.71x (an extra hop is never free) |
 | Klyro vs a direct connection, page loads with assets            | 0.70x to 1.14x (the cache closes the gap)   |
 | Klyro vs Klyro with pooling and caching off                     | 0.81x to 4.73x (best: CSS-heavy page)       |
-| Klyro native vs the Scramjet client in Chromium, 100-image page | about 3.3x faster cold, 2.75x warm          |
+| Klyro native vs the Scramjet client in Chromium, 100-image page | about 2.5x faster cold, 3.0x warm           |
 
 The honest claim today is: **up to 4.7x over its own unoptimised configuration on asset-heavy page
 loads, and about 3x faster than the Scramjet client on one browser workload.** It is not faster than

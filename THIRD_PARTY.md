@@ -26,12 +26,13 @@ texts are collected in [web/THIRD_PARTY_LICENSES.txt](web/THIRD_PARTY_LICENSES.t
 The browser client is licensed **AGPL-3.0-only** because it loads and serves AGPL-licensed libraries.
 See [NOTICE](NOTICE) and [web/LICENSE](web/LICENSE).
 
-| Project                                                        | Source                                       | Licence                                                       | Usage                                                         | Modified                                                            |
-| -------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Scramjet 1.1.0 (`@mercuryworkshop/scramjet`)                   | github.com/MercuryWorkshop/scramjet          | MIT                                                           | Browser-side interception and rewriting in compatibility mode | No (installed from npm, copied unmodified into `web/public/scram/`) |
-| bare-mux 2.1.9 (`@mercuryworkshop/bare-mux`)                   | github.com/MercuryWorkshop/bare-mux          | MIT (licence file; the package metadata has no licence field) | Connection between the page and the transport                 | No                                                                  |
-| libcurl-transport 1.5.2 (`@mercuryworkshop/libcurl-transport`) | github.com/MercuryWorkshop/libcurl-transport | AGPL-3.0-only                                                 | Transport that speaks Wisp, in compatibility mode             | No                                                                  |
-| libcurl.js 0.7.5                                               | github.com/ading2210/libcurl.js              | LGPL-3.0-or-later                                             | Bundled inside libcurl-transport                              | No                                                                  |
+| Project                                                            | Source                                       | Licence           | Usage                                                            | Modified                                                            |
+| ------------------------------------------------------------------ | -------------------------------------------- | ----------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Scramjet 2.1.0 (`@mercuryworkshop/scramjet`)                       | github.com/MercuryWorkshop/scramjet          | AGPL-3.0-only     | Browser-side interception and rewriting in compatibility mode    | No (installed from npm, copied unmodified into `web/public/scram/`) |
+| scramjet-controller 0.1.0 (`@mercuryworkshop/scramjet-controller`) | github.com/MercuryWorkshop/scramjet          | AGPL-3.0-only     | Connects the page and the service worker to Scramjet             | No (installed from npm, copied unmodified into `web/public/scram/`) |
+| proxy-transports 1.0.2 (`@mercuryworkshop/proxy-transports`)       | github.com/MercuryWorkshop/proxy-transports  | MIT               | The interface a transport implements (the successor to bare-mux) | No (installed from npm, copied unmodified into `web/public/scram/`) |
+| libcurl-transport 2.0.6 (`@mercuryworkshop/libcurl-transport`)     | github.com/MercuryWorkshop/libcurl-transport | AGPL-3.0-only     | Transport that speaks Wisp, in compatibility mode                | No (installed from npm, copied unmodified into `web/public/scram/`) |
+| libcurl.js 0.7.5                                                   | github.com/ading2210/libcurl.js              | LGPL-3.0-or-later | Bundled inside libcurl-transport                                 | No (installed from npm, copied unmodified into `web/public/scram/`) |
 
 The front-end files in `web/public/` (`index.html`, `app.js`, `sw.js`, `style.css`) are original
 code written for this project, using the documented public APIs of the libraries above.
@@ -50,10 +51,14 @@ The brief asked for a study of the wider proxy ecosystem. What was actually read
   (how the service worker, controller and transport are configured), to build the compatibility
   client. The example application is AGPL-3.0, so its files were **not copied**; `web/public/*` was
   written from the documented API.
-- **bare-mux, libcurl-transport, libcurl.js, scramjet-controller**: package metadata and licences only.
+- **scramjet-controller and proxy-transports** (Scramjet 2.1.0): the type definitions, the source the
+  controller package ships, and the proxy-transports README, to wire the compatibility client to the
+  documented API (`Controller`, `createFrame`, the service-worker `shouldRoute` and `route`, and a
+  transport). `web/public/*` was written from that API; no code was copied from them.
+- **libcurl-transport, libcurl.js**: package metadata, README and licences only.
 
 **Not read in the course of this work:** the source code of Ultraviolet, Corrosion, epoxy-tls,
-Epoxy, Wisp JS, Workerware, adrift, or the Titanium Network `proxy-transports` project. Klyro's
+Epoxy, Wisp JS, Workerware, or adrift. Klyro's
 native mode is an original design (path-style proxy URLs, a fast path versus a transform path, a
 validating connection pool) and does not derive from any of them. If code from any of those projects
 is ever reused, add it here with its licence, and check whether the licence is compatible with the

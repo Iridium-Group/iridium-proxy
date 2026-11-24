@@ -24,7 +24,7 @@ export IRIDIUM_SECURITY__BLOCK_PRIVATE_ADDRESSES=true
 export PORT
 
 [ -d node_modules ] || npm ci
-[ -d web/public/scram ] || npm run build:web
+[ -d web/public/scramjet ] || npm run build:web
 npm run build --silent
 
 node bin/iridium-proxy.js &

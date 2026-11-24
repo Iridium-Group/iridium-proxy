@@ -23,7 +23,7 @@ Klyro has a **5x performance target**. That is a target, not a result. Measured 
   the workload (best on asset-heavy page loads). The 5x target was **not met** on any workload.
 - Against a direct connection: slower on single requests, roughly level on cached page loads. A proxy
   cannot beat no proxy.
-- In headless Chromium on a page with 100 images: about **3.3x faster cold and 2.75x faster warm
+- In headless Chromium on a page with 100 images: about **2.5x faster cold and 3.0x faster warm
   than the Scramjet client** in this repo. Scramjet supports more sites because it rewrites JavaScript.
 
 No real third-party website has been tested (no internet access in the build environment), so
